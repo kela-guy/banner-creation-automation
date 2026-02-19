@@ -1,0 +1,181 @@
+@import "../node_modules/tw-animate-css/dist/tw-animate.css";
+@import "../node_modules/shadcn/dist/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-hebrew: "Heebo", "Rubik", "Assistant", system-ui, sans-serif;
+
+  /* OKLCH palette (hue 259.597) */
+  --color-1: oklch(0.17 0.026 259.597);
+  --color-2: oklch(0.365 0.056 259.597);
+  --color-3: oklch(0.56 0.085 259.597);
+  --color-4: oklch(0.755 0.048 259.597);
+  --color-5: oklch(0.95 0.009 259.597);
+
+  /* Accent from palette */
+  --color-accent: var(--color-3);
+  --color-accent-foreground: oklch(0.98 0.006 259.597);
+  --color-accent-muted: oklch(0.93 0.02 259.597);
+
+  /* Surfaces (OKLCH) */
+  --surface-canvas: var(--color-5);
+  --surface-panel: oklch(1 0 0);
+  --surface-card: oklch(1 0 0);
+
+  --border-default: var(--color-4);
+  --border-muted: var(--color-5);
+
+  /* Panel configuration (tweakable via DialKit) */
+  --panel-padding: 0;
+  --panel-gap: 20px;
+  --panel-radius: 12px;
+  --panel-content-font-size: 14px;
+  --panel-heading-font-size: 16px;
+  --panel-accordion-gap: 4px;
+  --panel-trigger-padding-x: 16px;
+  --panel-trigger-padding-y: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-accent: var(--color-2);
+    --color-accent-muted: oklch(0.22 0.03 259.597);
+
+    --surface-canvas: var(--color-1);
+    --surface-panel: oklch(0.2 0.02 259.597);
+    --surface-card: var(--color-1);
+
+    --border-default: oklch(0.35 0.03 259.597);
+    --border-muted: var(--color-1);
+  }
+}
+
+/* Class-based dark: must be unlayered so it wins over :root when html has .dark */
+html.dark {
+  --color-accent: var(--color-2);
+  --color-accent-muted: oklch(0.22 0.03 259.597);
+  --surface-canvas: var(--color-1);
+  --surface-panel: oklch(0.2 0.02 259.597);
+  --surface-card: var(--color-1);
+  --border-default: oklch(0.35 0.03 259.597);
+  --border-muted: var(--color-1);
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Hebrew / RTL content */
+[dir="rtl"],
+.rtl {
+  font-family: var(--font-hebrew);
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .panel-content-text {
+    font-size: var(--panel-content-font-size);
+  }
+  .panel-heading-text {
+    font-size: var(--panel-heading-font-size);
+  }
+}
+
+@layer base {
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: var(--color-1);
+    --card: oklch(1 0 0);
+    --card-foreground: var(--color-1);
+    --popover: oklch(1 0 0);
+    --popover-foreground: var(--color-1);
+    --primary: var(--color-3);
+    --primary-foreground: oklch(0.98 0.006 259.597);
+    --secondary: var(--color-5);
+    --secondary-foreground: var(--color-1);
+    --muted: var(--color-5);
+    --muted-foreground: var(--color-2);
+    --accent: var(--color-5);
+    --accent-foreground: var(--color-1);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: var(--color-4);
+    --input: var(--color-4);
+    --ring: var(--color-3);
+    --chart-1: oklch(0.83 0.08 259.597);
+    --chart-2: oklch(0.75 0.08 259.597);
+    --chart-3: oklch(0.68 0.072 259.597);
+    --chart-4: oklch(0.62 0.072 259.597);
+    --chart-5: oklch(0.455 0.064 259.597);
+    --radius: 0.625rem;
+    --sidebar: oklch(1 0 0);
+    --sidebar-foreground: var(--color-1);
+    --sidebar-primary: var(--color-3);
+    --sidebar-primary-foreground: oklch(0.98 0.006 259.597);
+    --sidebar-accent: var(--color-5);
+    --sidebar-accent-foreground: var(--color-1);
+    --sidebar-border: var(--color-4);
+    --sidebar-ring: var(--color-3);
+  }
+  .dark {
+    --color-accent: var(--color-2);
+    --color-accent-muted: oklch(0.22 0.03 259.597);
+    --surface-canvas: var(--color-1);
+    --surface-panel: oklch(0.2 0.02 259.597);
+    --surface-card: var(--color-1);
+    --border-default: oklch(0.35 0.03 259.597);
+    --border-muted: var(--color-1);
+    --background: var(--color-1);
+    --foreground: var(--color-5);
+    --card: oklch(0.21 0.02 259.597);
+    --card-foreground: var(--color-5);
+    --popover: oklch(0.21 0.02 259.597);
+    --popover-foreground: var(--color-5);
+    --primary: var(--color-2);
+    --primary-foreground: oklch(0.95 0.008 259.597);
+    --secondary: oklch(0.274 0.02 259.597);
+    --secondary-foreground: var(--color-5);
+    --muted: oklch(0.274 0.02 259.597);
+    --muted-foreground: var(--color-4);
+    --accent: oklch(0.274 0.02 259.597);
+    --accent-foreground: var(--color-5);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(0.35 0.03 259.597);
+    --input: oklch(0.35 0.03 259.597);
+    --ring: var(--color-2);
+    --chart-1: oklch(0.62 0.072 259.597);
+    --chart-2: oklch(0.55 0.07 259.597);
+    --chart-3: oklch(0.455 0.064 259.597);
+    --chart-4: oklch(0.38 0.05 259.597);
+    --chart-5: var(--color-1);
+    --sidebar: oklch(0.21 0.02 259.597);
+    --sidebar-foreground: var(--color-5);
+    --sidebar-primary: var(--color-2);
+    --sidebar-primary-foreground: oklch(0.95 0.008 259.597);
+    --sidebar-accent: oklch(0.274 0.02 259.597);
+    --sidebar-accent-foreground: var(--color-5);
+    --sidebar-border: oklch(0.35 0.03 259.597);
+    --sidebar-ring: var(--color-2);
+  }
+  .theme {
+    --font-sans: var(--font-sans);
+  }
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    outline: 2px solid color-mix(in oklch, var(--ring) 50%, transparent);
+    outline-offset: 2px;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
