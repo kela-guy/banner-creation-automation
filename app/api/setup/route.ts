@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "This server is not configured to save API keys. Please ask the site administrator to set ENCRYPTION_SECRET.",
+            "This server is not configured to save API keys. On Vercel: set ENCRYPTION_SECRET in Project → Settings → Environment Variables (Production), then redeploy.",
         },
         { status: 503 }
       );

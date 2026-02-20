@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useMemo, useEffect, useRef, use } from "react";
+import { useSearchParams } from "next/navigation";
 import { PipelineCanvas } from "@/components/PipelineCanvas";
 import { ResultPanel } from "@/components/panels/ResultPanel";
 import { PanelDrawer } from "@/components/PanelDrawer";
@@ -84,7 +85,9 @@ export default PageWrapper;
 function Home() {
   const { locale } = useThemeAndLocale();
   const { setFullScreen } = useFullScreenLayout();
+  const searchParams = useSearchParams();
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
+  const forceOnboarding = searchParams.get("forceOnboarding") === "1";
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>("upload");
   const [documentText, setDocumentText] = useState("");
@@ -107,11 +110,11 @@ function Home() {
       .catch(() => setSetupComplete(false));
   }, []);
 
-  // Hide sidebar during onboarding
+  // Hide sidebar during onboarding (or when ?forceOnboarding=1)
   useEffect(() => {
-    setFullScreen(setupComplete === false);
+    setFullScreen(forceOnboarding || setupComplete === false);
     return () => setFullScreen(false);
-  }, [setupComplete, setFullScreen]);
+  }, [forceOnboarding, setupComplete, setFullScreen]);
 
   // Restore vault from localStorage after mount (avoids hydration mismatch)
   useEffect(() => {
@@ -442,7 +445,7 @@ function Home() {
     );
   }
 
-  if (!setupComplete) {
+  if (forceOnboarding || !setupComplete) {
     return <Onboarding onComplete={() => setSetupComplete(true)} />;
   }
 
