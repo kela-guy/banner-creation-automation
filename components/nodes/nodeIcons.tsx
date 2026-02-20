@@ -1,36 +1,37 @@
 "use client";
 
 /**
- * Pipeline node icons from Central Icons (https://centralicons.com/).
- * Requires @central-icons-react/round-filled-radius-0-stroke-2 and CENTRAL_LICENSE_KEY at install time.
+ * Pipeline node icons (Phosphor Icons – no license required).
  */
-import { IconFolderUpload } from "@central-icons-react/round-filled-radius-0-stroke-2/IconFolderUpload";
-import { IconGemini } from "@central-icons-react/round-filled-radius-0-stroke-2/IconGemini";
-import { IconSparkle } from "@central-icons-react/round-filled-radius-0-stroke-2/IconSparkle";
-import { IconImages1 } from "@central-icons-react/round-filled-radius-0-stroke-2/IconImages1";
+import {
+  UploadSimple,
+  Brain,
+  Sparkle,
+  ImagesSquare,
+} from "@phosphor-icons/react";
 
 const ICON_SIZE = 28;
 
 export function UploadIcon() {
-  return <IconFolderUpload size={ICON_SIZE} ariaHidden />;
+  return <UploadSimple size={ICON_SIZE} aria-hidden />;
 }
 
 export function ExtractIcon() {
-  return <IconGemini size={ICON_SIZE} ariaHidden />;
+  return <Brain size={ICON_SIZE} aria-hidden />;
 }
 
 export function CopyIcon() {
-  return <IconGemini size={ICON_SIZE} ariaHidden />;
+  return <Brain size={ICON_SIZE} aria-hidden />;
 }
 
 export function ConceptIcon() {
-  return <IconSparkle size={ICON_SIZE} ariaHidden />;
+  return <Sparkle size={ICON_SIZE} aria-hidden />;
 }
 
 export function GenerateIcon() {
-  return <IconGemini size={ICON_SIZE} ariaHidden />;
+  return <Brain size={ICON_SIZE} aria-hidden />;
 }
 
 export function GalleryIcon() {
-  return <IconImages1 size={ICON_SIZE} ariaHidden />;
+  return <ImagesSquare size={ICON_SIZE} aria-hidden />;
 }
