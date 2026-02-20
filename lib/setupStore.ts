@@ -79,16 +79,24 @@ export async function getSetupPublic(): Promise<SetupPublic> {
   };
 }
 
+/**
+ * Saves setup to disk (local dev only). On serverless (e.g. Vercel) the filesystem
+ * is read-only, so we ignore file write failures; the cookie is the source of truth in production.
+ */
 export async function saveSetup(provider: Provider, apiKey: string): Promise<void> {
-  const dir = join(process.cwd(), SETUP_DIR);
-  await mkdir(dir, { recursive: true });
-  const path = getSetupPath();
   const data: SetupData = {
     provider,
     apiKey: apiKey.trim(),
     completedAt: new Date().toISOString(),
   };
-  await writeFile(path, JSON.stringify(data, null, 0), "utf-8");
+  try {
+    const dir = join(process.cwd(), SETUP_DIR);
+    await mkdir(dir, { recursive: true });
+    const path = getSetupPath();
+    await writeFile(path, JSON.stringify(data, null, 0), "utf-8");
+  } catch {
+    /* Ignore: on Vercel/serverless the filesystem is read-only; cookie is used instead */
+  }
 }
 
 export async function isSetupComplete(): Promise<boolean> {

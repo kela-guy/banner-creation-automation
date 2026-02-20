@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { DM_Sans } from "next/font/google";
 import { ThemeAndLocaleProvider } from "@/components/ThemeAndLocaleProvider";
+import { FullScreenLayoutProvider } from "@/components/FullScreenLayoutContext";
 import { AppLayout } from "@/components/AppLayout";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
@@ -53,7 +54,9 @@ export default async function RootLayout(props: Readonly<LayoutProps>) {
       </head>
       <body className="antialiased">
         <ThemeAndLocaleProvider>
-          <AppLayout>{children}</AppLayout>
+          <FullScreenLayoutProvider>
+            <AppLayout>{children}</AppLayout>
+          </FullScreenLayoutProvider>
         </ThemeAndLocaleProvider>
       </body>
     </html>

@@ -49,21 +49,38 @@ export async function POST(request: NextRequest) {
     }
 
     await saveSetup("google", apiKey);
-    const publicData = await getSetupPublic();
-    const response = NextResponse.json(publicData);
     const payload = encryptSetup({
       provider: "google",
       apiKey: apiKey.trim(),
       completedAt: new Date().toISOString(),
     });
-    if (payload) {
-      response.cookies.set(BANNER_SETUP_COOKIE, payload, COOKIE_OPTIONS);
+    if (!payload) {
+      console.error("Setup POST: ENCRYPTION_SECRET is not set; cannot save API key securely.");
+      return NextResponse.json(
+        {
+          error:
+            "This server is not configured to save API keys. Please ask the site administrator to set ENCRYPTION_SECRET.",
+        },
+        { status: 503 }
+      );
     }
+    const completedAt = new Date().toISOString();
+    const response = NextResponse.json({
+      provider: "google",
+      completedAt,
+    });
+    response.cookies.set(BANNER_SETUP_COOKIE, payload, COOKIE_OPTIONS);
     return response;
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to save setup";
     console.error("Setup POST error:", err);
     return NextResponse.json(
-      { error: "Failed to save setup" },
+      {
+        error:
+          process.env.NODE_ENV === "development"
+            ? `Could not save: ${message}`
+            : "We couldn’t save your API key. Please check your connection and try again, or use a valid Gemini API key from Google AI Studio.",
+      },
       { status: 500 }
     );
   }

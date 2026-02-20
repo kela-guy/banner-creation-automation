@@ -51,9 +51,24 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     onComplete();
   };
 
+  const steps = 3;
+  const currentStep = screen;
+
   return (
     <div className="flex h-dvh flex-col items-center justify-center bg-[var(--background)] p-6">
       <div className="w-full max-w-md rounded-2xl border border-[var(--border-default)] bg-[var(--surface-card)] p-8 shadow-lg">
+        {/* Progress: step indicator + bar */}
+        <div className="mb-8" aria-label={`Step ${currentStep} of ${steps}`}>
+          <p className="text-xs font-medium text-[var(--foreground)]/60 mb-2">
+            Step {currentStep} of {steps}
+          </p>
+          <div className="h-1.5 w-full rounded-full bg-[var(--surface-panel)] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300 ease-out"
+              style={{ width: `${(currentStep / steps) * 100}%` }}
+            />
+          </div>
+        </div>
         {screen === 1 && (
           <>
             <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">

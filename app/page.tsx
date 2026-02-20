@@ -5,6 +5,7 @@ import { PipelineCanvas } from "@/components/PipelineCanvas";
 import { ResultPanel } from "@/components/panels/ResultPanel";
 import { PanelDrawer } from "@/components/PanelDrawer";
 import { Onboarding } from "@/components/Onboarding";
+import { useFullScreenLayout } from "@/components/FullScreenLayoutContext";
 import { Button } from "@/components/ui/Button";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
 import { t } from "@/lib/translations";
@@ -82,6 +83,7 @@ export default PageWrapper;
 
 function Home() {
   const { locale } = useThemeAndLocale();
+  const { setFullScreen } = useFullScreenLayout();
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>("upload");
@@ -104,6 +106,12 @@ function Home() {
       })
       .catch(() => setSetupComplete(false));
   }, []);
+
+  // Hide sidebar during onboarding
+  useEffect(() => {
+    setFullScreen(setupComplete === false);
+    return () => setFullScreen(false);
+  }, [setupComplete, setFullScreen]);
 
   // Restore vault from localStorage after mount (avoids hydration mismatch)
   useEffect(() => {
