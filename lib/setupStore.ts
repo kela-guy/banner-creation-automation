@@ -81,9 +81,13 @@ export async function getSetupPublic(): Promise<SetupPublic> {
 
 /**
  * Saves setup to disk (local dev only). On serverless (e.g. Vercel) the filesystem
- * is read-only, so we ignore file write failures; the cookie is the source of truth in production.
+ * is read-only, so we skip file write there; the cookie is the source of truth in production.
  */
 export async function saveSetup(provider: Provider, apiKey: string): Promise<void> {
+  // Skip file write on Vercel/serverless (read-only fs); cookie is used instead
+  if (process.env.VERCEL === "1") {
+    return;
+  }
   const data: SetupData = {
     provider,
     apiKey: apiKey.trim(),
@@ -95,7 +99,7 @@ export async function saveSetup(provider: Provider, apiKey: string): Promise<voi
     const path = getSetupPath();
     await writeFile(path, JSON.stringify(data, null, 0), "utf-8");
   } catch {
-    /* Ignore: on Vercel/serverless the filesystem is read-only; cookie is used instead */
+    /* Ignore: e.g. read-only fs; cookie is the source of truth in production */
   }
 }
 

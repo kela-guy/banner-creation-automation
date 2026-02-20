@@ -72,16 +72,13 @@ export async function POST(request: NextRequest) {
     response.cookies.set(BANNER_SETUP_COOKIE, payload, COOKIE_OPTIONS);
     return response;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to save setup";
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Setup POST error:", err);
-    return NextResponse.json(
-      {
-        error:
-          process.env.NODE_ENV === "development"
-            ? `Could not save: ${message}`
-            : "We couldn’t save your API key. Please check your connection and try again, or use a valid Gemini API key from Google AI Studio.",
-      },
-      { status: 500 }
-    );
+    // Always include the real reason so the user (and support) can see what went wrong
+    const userMessage =
+      process.env.NODE_ENV === "development"
+        ? `Could not save: ${message}`
+        : `We couldn’t save your API key. ${message}`;
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }
