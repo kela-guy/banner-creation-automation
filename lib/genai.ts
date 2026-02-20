@@ -19,5 +19,7 @@ export function getGenAI(apiKey?: string): GoogleGenAI {
   return client;
 }
 
-export const TEXT_MODEL = "gemini-2.0-flash";
+/** Text/reasoning: extract, copy, concepts, describe. Replaced deprecated gemini-2.0-flash. */
+export const TEXT_MODEL = "gemini-2.5-flash";
+/** Image generation (Nano Banana Pro / Gemini 3 Pro Image). */
 export const IMAGE_MODEL = "gemini-3-pro-image-preview";

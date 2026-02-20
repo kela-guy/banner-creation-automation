@@ -83,6 +83,7 @@ export function ResultPanel({
   const [isFetchingSalesPage, setIsFetchingSalesPage] = useState(false);
   const [salesPageFetchError, setSalesPageFetchError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [refsModalOpen, setRefsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const salesPageFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -276,23 +277,35 @@ export function ResultPanel({
             </p>
 
             {!hasDocument && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-3 flex flex-col gap-3">
                 <Button
                   type="button"
-                  variant="secondary"
-                  onClick={() => setPastedText(getAvatarTemplate(locale))}
-                  aria-label={panelT(locale, "startFromTemplate")}
+                  variant="primary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isParsing}
+                  aria-busy={isParsing}
+                  aria-label={panelT(locale, "chooseFile")}
                 >
-                  {panelT(locale, "startFromTemplate")}
+                  {isParsing ? panelT(locale, "parsingFile") : panelT(locale, "uploadDocument")}
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => downloadAvatarTemplate(locale)}
-                  className="text-sm text-accent underline hover:no-underline"
-                  aria-label={panelT(locale, "downloadTemplate")}
-                >
-                  {panelT(locale, "downloadTemplate")}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setPastedText(getAvatarTemplate(locale))}
+                    aria-label={panelT(locale, "startFromTemplate")}
+                  >
+                    {panelT(locale, "startFromTemplate")}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => downloadAvatarTemplate(locale)}
+                    className="text-sm text-accent underline hover:no-underline"
+                    aria-label={panelT(locale, "downloadTemplate")}
+                  >
+                    {panelT(locale, "downloadTemplate")}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -379,13 +392,13 @@ export function ResultPanel({
           </ConfigAccordion.Section>
 
           <ConfigAccordion.Section value="optional" title={panelT(locale, "optionalTitle")}>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {documentText.trim() && !salesPageText.trim() && (
                 <p className="text-xs text-amber-700 dark:text-amber-300" role="status">
                   {panelT(locale, "nudgeSalesPage")}
                 </p>
               )}
-              <div>
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] p-4">
                 <h3 className="panel-heading-text font-medium text-[var(--foreground)] mb-1">
                   <Tooltip.Root content={panelT(locale, "salesPageHint")} side="top">
                     <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">
@@ -414,7 +427,7 @@ export function ResultPanel({
                   </p>
                 )}
               </div>
-              <div>
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] p-4">
                 <h3 className="panel-heading-text font-medium text-[var(--foreground)] mb-1">
                   <Tooltip.Root content={panelT(locale, "brandHint")} side="top">
                     <span className="cursor-help border-b border-dotted border-slate-400 dark:border-slate-500">
@@ -509,42 +522,57 @@ export function ResultPanel({
                           <img key={i} src={src} alt="" role="presentation" className="h-12 w-12 object-cover rounded border border-[var(--border-default)]" />
                         ))}
                         {referenceBanners.length > 4 && <span className="text-xs text-slate-500">+{referenceBanners.length - 4}</span>}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setRefsModalOpen(true)}
+                          aria-label={panelT(locale, "viewAllRefsCount").replace("{{count}}", String(referenceBanners.length))}
+                        >
+                          {panelT(locale, "viewAllRefsCount").replace("{{count}}", String(referenceBanners.length))}
+                        </Button>
                         <Button type="button" variant="secondary" onClick={() => onReferenceBannersChange([])}>{panelT(locale, "clearAll")}</Button>
                       </div>
                     )}
                   </div>
-                  <div>
+                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-panel)] p-3">
                     <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "generationStyle")}</label>
-                    <div className="flex gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
+                    <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "generationStyleIntro")}</p>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="radio"
                           name="generationStyle"
                           checked={generationStyle === "typography"}
                           onChange={() => onGenerationStyleChange("typography")}
-                          className="rounded-full border-[var(--border-default)] text-accent focus:ring-accent"
+                          className="mt-0.5 rounded-full border-[var(--border-default)] text-accent focus:ring-accent"
                         />
-                        <span className="text-sm text-[var(--foreground)]">{panelT(locale, "minimalTypography")}</span>
+                        <span>
+                          <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "minimalTypography")}</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "minimalTypographyDesc")}</span>
+                        </span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="radio"
                           name="generationStyle"
                           checked={generationStyle === "infographic"}
                           onChange={() => onGenerationStyleChange("infographic")}
                           disabled={referenceBanners.length === 0}
-                          className="rounded-full border-[var(--border-default)] text-accent focus:ring-accent disabled:opacity-50"
+                          className="mt-0.5 rounded-full border-[var(--border-default)] text-accent focus:ring-accent disabled:opacity-50"
                         />
-                        <span className="text-sm text-[var(--foreground)]">{panelT(locale, "infographicFromRefs")}</span>
+                        <span>
+                          <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "infographicFromRefs")}</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "infographicFromRefsDesc")}</span>
+                        </span>
                       </label>
                     </div>
                     {referenceBanners.length === 0 && (
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "uploadRefsToEnable")}</p>
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "uploadRefsToEnable")}</p>
                     )}
                   </div>
                 </div>
               </div>
-              <div>
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] p-4">
                 <h3 className="panel-heading-text font-medium text-[var(--foreground)] mb-1">{panelT(locale, "infographicVariations")}</h3>
                 <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                   {panelT(locale, "infographicHint")}
@@ -570,6 +598,47 @@ export function ResultPanel({
           </ConfigAccordion.Section>
         </ConfigAccordion>
       </div>
+      {refsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={panelT(locale, "referenceBanners")}
+          onClick={() => setRefsModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-xl bg-[var(--surface-card)] border border-[var(--border-default)] shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 p-3 border-b border-[var(--border-default)] shrink-0">
+              <h3 className="font-medium text-[var(--foreground)]">{panelT(locale, "referenceBanners")} ({referenceBanners.length})</h3>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => { onReferenceBannersChange([]); setRefsModalOpen(false); }}>
+                  {panelT(locale, "clearAll")}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setRefsModalOpen(false)} aria-label={panelT(locale, "closePreview")}>
+                  {panelT(locale, "close")}
+                </Button>
+              </div>
+            </div>
+            <div className="p-3 overflow-auto flex-1 grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {referenceBanners.map((src, i) => (
+                <div key={i} className="relative group rounded-lg border border-[var(--border-default)] overflow-hidden bg-[var(--surface-panel)]">
+                  <img src={src} alt="" role="presentation" className="w-full aspect-square object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => onReferenceBannersChange(referenceBanners.filter((_, j) => j !== i))}
+                    className="absolute top-1 right-1 h-7 w-7 rounded-full bg-red-500/90 text-white text-sm font-bold flex items-center justify-center hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-white"
+                    aria-label={`Remove image ${i + 1}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     );
   }
