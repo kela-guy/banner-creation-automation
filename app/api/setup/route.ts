@@ -55,26 +55,30 @@ export async function POST(request: NextRequest) {
       completedAt: new Date().toISOString(),
     });
     if (!payload) {
-      console.error("Setup POST: ENCRYPTION_SECRET is not set; cannot save API key securely.");
-      return NextResponse.json(
-        {
-          error:
-            "This server is not configured to save API keys. On Vercel: set ENCRYPTION_SECRET in Project → Settings → Environment Variables (Production), then redeploy.",
-        },
-        { status: 503 }
-      );
+      const msg =
+        "Server cannot save API keys: ENCRYPTION_SECRET is not set. On Vercel: Project → Settings → Environment Variables → add ENCRYPTION_SECRET for Production → Redeploy.";
+      console.error("Setup POST:", msg);
+      return NextResponse.json({ error: msg }, { status: 503 });
     }
     const completedAt = new Date().toISOString();
     const response = NextResponse.json({
       provider: "google",
       completedAt,
     });
-    response.cookies.set(BANNER_SETUP_COOKIE, payload, COOKIE_OPTIONS);
+    try {
+      response.cookies.set(BANNER_SETUP_COOKIE, payload, COOKIE_OPTIONS);
+    } catch (cookieErr) {
+      const cookieMsg = cookieErr instanceof Error ? cookieErr.message : "Cookie set failed";
+      console.error("Setup POST: cookie set failed", cookieErr);
+      return NextResponse.json(
+        { error: `Key was encrypted but setting the cookie failed. ${cookieMsg}` },
+        { status: 500 }
+      );
+    }
     return response;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : String(err);
     console.error("Setup POST error:", err);
-    // Always include the real reason so the user (and support) can see what went wrong
     const userMessage =
       process.env.NODE_ENV === "development"
         ? `Could not save: ${message}`

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 
 const GEMINI_API_KEY_URL = "https://aistudio.google.com/apikey";
@@ -17,6 +17,15 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [serverConfigured, setServerConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (screen !== 2) return;
+    fetch("/api/setup/check")
+      .then((r) => r.json().catch(() => ({ configured: false })))
+      .then((d: { configured?: boolean }) => setServerConfigured(d.configured === true))
+      .catch(() => setServerConfigured(false));
+  }, [screen]);
 
   const handleNext = () => {
     setSaveError(null);
@@ -36,9 +45,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "google", apiKey: apiKey.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
+      const text = await res.text();
+      let data: { error?: string } = {};
+      try {
+        data = JSON.parse(text) as { error?: string };
+      } catch {
+        /* non-JSON response (e.g. HTML error page) */
+      }
       if (!res.ok) {
-        setSaveError((data as { error?: string }).error ?? "Failed to save. Try again.");
+        const msg = data.error?.trim();
+        setSaveError(
+          msg ||
+            (res.status === 503
+              ? "Server is not configured to save keys. Add ENCRYPTION_SECRET in Vercel → Project → Settings → Environment Variables (Production), then redeploy."
+              : `Save failed (${res.status}). Try again or check Vercel env vars.`)
+        );
         return;
       }
       setScreen(3);
@@ -117,6 +138,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
         {screen === 2 && (
           <>
+            {serverConfigured === false && (
+              <div className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200" role="alert">
+                Server is not configured to save your key. Add <strong>ENCRYPTION_SECRET</strong> in Vercel → Project → Settings → Environment Variables (Production), then redeploy.
+              </div>
+            )}
             <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
               Enter your API key
             </h2>
