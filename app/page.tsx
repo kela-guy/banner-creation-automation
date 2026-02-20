@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useMemo, useEffect, useRef, use } from "react";
+import { useCallback, useState, useMemo, useEffect, useRef, use, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { PipelineCanvas } from "@/components/PipelineCanvas";
 import { ResultPanel } from "@/components/panels/ResultPanel";
@@ -77,7 +77,17 @@ function PageWrapper(props: PageProps) {
   }
   if (paramsPromise != null) use(paramsPromise);
   if (searchParamsPromise != null) use(searchParamsPromise);
-  return <Home />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-dvh items-center justify-center bg-[var(--background)]" aria-busy="true" aria-label="Loading">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        </div>
+      }
+    >
+      <Home />
+    </Suspense>
+  );
 }
 
 export default PageWrapper;
