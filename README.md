@@ -42,6 +42,24 @@ A React + React Flow pipeline that generates Hebrew Facebook ad banners from an 
 
    Open [http://localhost:3000](http://localhost:3000).
 
+## Deployment (users supply their own API keys)
+
+In production, **you do not set a Gemini API key**. Each user enters their own key in the app (onboarding); it is stored encrypted in a cookie. You only need:
+
+| Variable | Required? | Purpose |
+|----------|-----------|--------|
+| `ENCRYPTION_SECRET` | **Yes** | Encrypts/decrypts the cookie that stores the user’s API key. Generate with: `openssl rand -base64 32` |
+| `GEMINI_API_KEY` | **No** | Only for local dev so you can skip re-entering your key. Do **not** set in production. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Optional | Only if you want “Upload to Drive” in the Gallery. Create an OAuth 2.0 Client ID (Web) in Google Cloud. |
+
+**Steps for deploy:**
+
+1. Set `ENCRYPTION_SECRET` in your host’s environment (e.g. Vercel → Project → Settings → Environment Variables).
+2. Do **not** set `GEMINI_API_KEY` in production.
+3. Optionally set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` if you want Drive upload.
+
+Use `.env.example` (or `.env.local.example`) as a reference; in production the only required secret is `ENCRYPTION_SECRET`.
+
 ## Usage
 
 1. Click **Upload Avatar** in the pipeline and paste your persona document or upload a PDF/DOCX.
