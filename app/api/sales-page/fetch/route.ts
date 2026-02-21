@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { convert } from "html-to-text";
 
-const FETCH_TIMEOUT_MS = 10_000;
+/** Allow enough time for external fetch + processing so Vercel doesn't return 504 Gateway Timeout. */
+export const maxDuration = 25;
+
+const FETCH_TIMEOUT_MS = 8_000;
 const MAX_HTML_BYTES = 500 * 1024; // 500KB
 const MAX_TEXT_CHARS = 30_000;
 
