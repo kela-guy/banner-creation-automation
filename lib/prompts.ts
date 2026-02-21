@@ -5,7 +5,9 @@ const SALES_PAGE_MAX_CHARS = 15_000;
 
 export function getExtractUserPrompt(
   documentText: string,
-  salesPageText?: string
+  salesPageText?: string,
+  trendContext?: string,
+  trendingAngles?: { hook: string }[] | string[]
 ): string {
   const avatarSection = `Analyze this Avatar persona document and return a single JSON object with exactly these keys (all arrays of strings). Write every item in Hebrew (עברית).
 - painPoints: list of customer pain points (נקודות כאב) — each string in Hebrew
@@ -18,6 +20,11 @@ ${documentText.slice(0, AVATAR_MAX_CHARS)}
 ---
 `;
 
+  const angleTexts = trendingAngles?.map((a) => typeof a === "string" ? a : a.hook) ?? [];
+  const trendSection = trendContext
+    ? `\n\nValidated marketing hooks (fused from current trends + this product's offer):\n---\n${trendContext}\n---\n${angleTexts.length ? `\nSpecific advertising angles already validated against trending data:\n${angleTexts.map((a) => `- ${a}`).join("\n")}\n` : ""}These hooks represent the intersection of what people are actively talking about RIGHT NOW and what this product uniquely solves. Use them to sharpen your pain points and desires — frame them in a way that taps into these live conversations. Prioritize pain points and desires that align with these validated hooks.`
+    : "";
+
   if (salesPageText && salesPageText.trim()) {
     const capped = salesPageText.trim().slice(0, SALES_PAGE_MAX_CHARS);
     return `${avatarSection}
@@ -29,27 +36,39 @@ Sales page copy:
 ${capped}
 ${salesPageText.trim().length > SALES_PAGE_MAX_CHARS ? "\n[...truncated]" : ""}
 ---
+${trendSection}
 
 Return only valid JSON, no markdown or explanation. Same schema: painPoints, desires, usps (all arrays of strings). Every string in each array must be in Hebrew.`;
   }
 
   return `${avatarSection}
+${trendSection}
 
 Return only valid JSON, no markdown or explanation. Every string in painPoints, desires, and usps must be in Hebrew.`;
 }
 
 export const COPY_SYSTEM = `You are a State-of-the-Art (SoTA) Marketer. Write compelling Facebook ad copy in Hebrew. Use modern, natural Hebrew that resonates with the target demographic. Focus on scroll-stopping headlines and body text that drives action. Use marketing terminology correctly (USP, CTR, ROAS) where appropriate. Be sharp, persuasive, and authoritative.`;
 
-export function getCopyUserPrompt(insights: {
-  painPoints: string[];
-  desires: string[];
-  usps: string[];
-}): string {
+export function getCopyUserPrompt(
+  insights: {
+    painPoints: string[];
+    desires: string[];
+    usps: string[];
+  },
+  trendContext?: string,
+  trendingAngles?: { hook: string }[] | string[]
+): string {
+  const angleTexts = trendingAngles?.map((a) => typeof a === "string" ? a : a.hook) ?? [];
+  const trendSection = trendContext
+    ? `\n\nValidated marketing hooks (each connects a live trend to this product's value):\n${trendContext}\n${angleTexts.length ? `\nPre-validated ad angles to BUILD YOUR COPY AROUND:\n${angleTexts.map((a) => `- ${a}`).join("\n")}\n` : ""}At least 5 of your 15 variations MUST directly leverage one of these hooks. The hooks already combine trending conversations with the product's value — use them as headline/body inspiration to make the copy feel urgent and timely.\n`
+    : "";
+
   return `Based on these insights from an Avatar persona document, write 15 Hebrew ad copy variations for Facebook ads.
 
 Pain points: ${insights.painPoints.join("; ")}
 Desires: ${insights.desires.join("; ")}
 USPs: ${insights.usps.join("; ")}
+${trendSection}
 
 Return exactly 15 variations in this JSON structure (no other text):
 {
@@ -74,7 +93,9 @@ export function getConceptsUserPrompt(
   copySample: { headline: string; body: string }[],
   count: number = 10,
   brandColors?: string[],
-  hasReferenceBanners?: boolean
+  hasReferenceBanners?: boolean,
+  trendContext?: string,
+  trendingAngles?: { hook: string }[] | string[]
 ): string {
   const copyPreview = copySample
     .slice(0, 5)
@@ -88,6 +109,10 @@ export function getConceptsUserPrompt(
     hasReferenceBanners
       ? "\nThe user uploaded reference banners for style inspiration; suggest concepts that align with a similar visual style (mood, composition, typography approach)."
       : "";
+  const angleTexts = trendingAngles?.map((a) => typeof a === "string" ? a : a.hook) ?? [];
+  const trendLine = trendContext
+    ? `\nValidated marketing hooks (fused from live trends + this product): ${trendContext}${angleTexts.length ? `\nAd angles to reflect visually:\n${angleTexts.map((a) => `- ${a}`).join("\n")}` : ""}\nAt least half the concepts should visually convey one of these hooks — through typography choice, imagery metaphors, or visual tension that mirrors the trending concern this product solves.`
+    : "";
   return `Based on these insights and sample ad copy, generate ${count} minimalistic 1:1 banner concepts.
 
 Insights:
@@ -96,6 +121,7 @@ Insights:
 - USPs: ${insights.usps.join("; ")}
 ${colorsLine}
 ${refLine}
+${trendLine}
 
 Sample copy (Hebrew):
 ${copyPreview}

@@ -1,6 +1,7 @@
 /**
  * Sanitize LLM-produced JSON before parsing.
- * Fixes trailing commas and unescaped newlines inside strings that break JSON.parse.
+ * Fixes trailing commas, unescaped newlines/tabs inside strings, and other
+ * common LLM quirks that break JSON.parse.
  */
 export function sanitizeJsonForParse(raw: string): string {
   let text = raw.trim();
@@ -19,5 +20,54 @@ export function sanitizeJsonForParse(raw: string): string {
   text = text.replace(/\r\n|\r|\n/g, " ");
   text = text.split(BACKSLASH_N_PLACEHOLDER).join("\\n");
 
-  return text;
+  // Escape unescaped control characters (tabs, etc.) inside string values
+  text = text.replace(/\t/g, "\\t");
+
+  // Fix unescaped backslashes that aren't part of valid escape sequences
+  text = text.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+
+  // Try parsing; if it fails, attempt to fix unescaped quotes inside string values
+  try {
+    JSON.parse(text);
+    return text;
+  } catch {
+    // Attempt to fix unescaped double quotes inside JSON string values.
+    // Walk character by character to find quotes that should be escaped.
+    let fixed = "";
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        fixed += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        fixed += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        if (!inString) {
+          inString = true;
+          fixed += ch;
+        } else {
+          // Check if this quote is a closing quote or an unescaped inner quote.
+          // A closing quote is followed by : , ] } or whitespace then one of those.
+          const rest = text.slice(i + 1).trimStart();
+          const nextChar = rest[0];
+          if (!nextChar || nextChar === "," || nextChar === "}" || nextChar === "]" || nextChar === ":") {
+            inString = false;
+            fixed += ch;
+          } else {
+            fixed += '\\"';
+          }
+        }
+      } else {
+        fixed += ch;
+      }
+    }
+    return fixed;
+  }
 }

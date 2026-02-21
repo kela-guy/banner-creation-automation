@@ -1,4 +1,6 @@
 import type { GenerationStyle } from "@/types/pipeline";
+import type { TrendTopic, TrendSource, TrendInsights } from "@/types/trends";
+import { DEFAULT_TREND_SOURCES } from "@/types/trends";
 
 /** LocalStorage key for the persistent brand/context vault. */
 export const VAULT_KEY = "banner-automation-vault";
@@ -11,6 +13,9 @@ export interface VaultData {
   brandColors: string[];
   referenceBanners: string[];
   generationStyle: GenerationStyle;
+  trendTopics: TrendTopic[];
+  trendSources: TrendSource[];
+  trendInsights: TrendInsights | null;
 }
 
 const defaults: VaultData = {
@@ -21,7 +26,17 @@ const defaults: VaultData = {
   brandColors: ["", ""],
   referenceBanners: [],
   generationStyle: "typography",
+  trendTopics: [],
+  trendSources: DEFAULT_TREND_SOURCES,
+  trendInsights: null,
 };
+
+/** Merge saved sources with defaults so newly added source types are always present. */
+function mergeTrendSources(saved: TrendSource[]): TrendSource[] {
+  const savedTypes = new Set(saved.map((s) => s.type));
+  const missing = DEFAULT_TREND_SOURCES.filter((d) => !savedTypes.has(d.type));
+  return [...saved, ...missing];
+}
 
 /** Load vault from localStorage. Safe to call in browser; returns defaults on SSR or parse error. */
 export function loadVault(): VaultData {
@@ -39,6 +54,9 @@ export function loadVault(): VaultData {
       brandColors: Array.isArray(parsed.brandColors) ? parsed.brandColors.filter((c): c is string => typeof c === "string") : defaults.brandColors,
       referenceBanners: Array.isArray(parsed.referenceBanners) ? parsed.referenceBanners.filter((s): s is string => typeof s === "string") : defaults.referenceBanners,
       generationStyle: style,
+      trendTopics: Array.isArray(parsed.trendTopics) ? parsed.trendTopics as TrendTopic[] : defaults.trendTopics,
+      trendSources: Array.isArray(parsed.trendSources) ? mergeTrendSources(parsed.trendSources as TrendSource[]) : defaults.trendSources,
+      trendInsights: parsed.trendInsights && typeof parsed.trendInsights === "object" ? parsed.trendInsights as TrendInsights : defaults.trendInsights,
     };
   } catch {
     return defaults;

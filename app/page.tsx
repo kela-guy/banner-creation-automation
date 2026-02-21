@@ -13,10 +13,14 @@ import { t } from "@/lib/translations";
 import { loadVault, saveVault } from "@/lib/vault";
 import { compositeLogoOntoBanner } from "@/lib/compositeLogo";
 import { loadLibrary, addToLibrary } from "@/lib/bannerLibrary";
-import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle } from "@/types/pipeline";
+import { PipelineActivityLog } from "@/components/PipelineActivityLog";
+import { consumeScoutStream } from "@/lib/consumeScoutStream";
+import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle, BannerTag } from "@/types/pipeline";
+import type { TrendTopic, TrendSource, TrendInsights } from "@/types/trends";
+import { DEFAULT_TREND_SOURCES } from "@/types/trends";
 import type { PipelineNodeData } from "@/components/nodes/PipelineNode";
 
-const NODE_IDS = ["upload", "extract", "copy", "concepts", "generate", "gallery"] as const;
+const NODE_IDS = ["upload", "trends", "extract", "copy", "concepts", "generate", "gallery"] as const;
 
 /** Max banners per run. Loop generates this many, one at a time with pause, to avoid rate limits. */
 const MAX_BANNERS_PER_RUN = 15;
@@ -111,6 +115,9 @@ function Home() {
   const [referenceBanners, setReferenceBanners] = useState<string[]>([]);
   const [generationStyle, setGenerationStyle] = useState<GenerationStyle>("typography");
   const [infographicTopicHeadline, setInfographicTopicHeadline] = useState("");
+  const [trendTopics, setTrendTopics] = useState<TrendTopic[]>([]);
+  const [trendSources, setTrendSources] = useState<TrendSource[]>(DEFAULT_TREND_SOURCES);
+  const [trendInsights, setTrendInsights] = useState<TrendInsights | null>(null);
   const vaultRestoredRef = useRef(false);
 
   // App gate: show onboarding if setup not complete
@@ -139,6 +146,9 @@ function Home() {
     setBrandColors(v.brandColors.length ? v.brandColors : ["", ""]);
     setReferenceBanners(v.referenceBanners);
     setGenerationStyle(v.generationStyle ?? "typography");
+    setTrendTopics(v.trendTopics ?? []);
+    setTrendSources(v.trendSources ?? DEFAULT_TREND_SOURCES);
+    setTrendInsights(v.trendInsights ?? null);
     // Mark restore as done only after state has committed, so the persist effect
     // doesn't run with empty state and overwrite the vault in the same tick.
     const t = setTimeout(() => {
@@ -158,8 +168,11 @@ function Home() {
       brandColors,
       referenceBanners,
       generationStyle,
+      trendTopics,
+      trendSources,
+      trendInsights,
     });
-  }, [documentText, salesPageUrl, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle]);
+  }, [documentText, salesPageUrl, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, trendTopics, trendSources, trendInsights]);
 
   // Load banner library (last 30 days) on mount
   useEffect(() => {
@@ -175,6 +188,7 @@ function Home() {
   const [currentRunBanners, setCurrentRunBanners] = useState<GeneratedBanner[]>([]);
   const [nodeStatus, setNodeStatus] = useState<Record<string, "idle" | "running" | "success" | "error">>({
     upload: "idle",
+    trends: "idle",
     extract: "idle",
     copy: "idle",
     concepts: "idle",
@@ -209,7 +223,72 @@ function Home() {
     setCurrentRunBanners([]);
     setIsRunning(true);
     try {
+      // ── Trends step: auto-extract topics if needed, then scout ──
+      let currentTrendInsights = trendInsights;
+      if (trendTopics.length > 0 && trendSources.some((s) => s.enabled)) {
+        setNode("trends", "running", "Scouting trends…");
+        try {
+          let topicsToScout = trendTopics;
+          if (topicsToScout.length === 0 && documentText.trim()) {
+            const topicRes = await fetchWith429Retry(
+              "/api/trends/extract-topics",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ documentText, salesPageText, locale }),
+              },
+              (attempt, sec) => setNode("trends", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
+            );
+            if (topicRes.ok) {
+              const topicJson = (await topicRes.json()) as { topics: TrendTopic[] };
+              topicsToScout = topicJson.topics ?? [];
+              setTrendTopics(topicsToScout);
+            }
+          }
+
+          if (topicsToScout.length > 0) {
+            const scoutRes = await fetch("/api/trends/scout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topics: topicsToScout.map((t) => t.keyword),
+                sources: trendSources,
+                locale,
+                documentText,
+                salesPageText,
+              }),
+            });
+            if (scoutRes.ok && scoutRes.body) {
+              const insights = await consumeScoutStream(scoutRes, {
+                onSourceStart: (_i, label) => setNode("trends", "running", `Scanning ${label}…`),
+                onSourceDone: (_i, label, _t, count) => setNode("trends", "running", `${label}: ${count} results`),
+                onAnalyzing: () => setNode("trends", "running", "Connecting trends to product…"),
+              });
+              if (insights) {
+                currentTrendInsights = insights;
+                setTrendInsights(insights);
+                setNode("trends", "success", `${insights.results.length} results, ${insights.trendingAngles.length} angles`);
+              } else {
+                setNode("trends", "error", "Scout failed");
+              }
+            } else {
+              setNode("trends", "error", "Scout failed");
+            }
+          } else {
+            setNode("trends", "success", "No topics to scout");
+          }
+        } catch {
+          setNode("trends", "error", "Trend scouting failed");
+        }
+      } else {
+        setNode("trends", "success", "Skipped");
+      }
+
       setNode("extract", "running");
+      const trendContext = currentTrendInsights?.summary
+        ? { trendContext: currentTrendInsights.summary, trendingAngles: currentTrendInsights.trendingAngles }
+        : {};
+
       const extRes = await fetchWith429Retry(
         "/api/extract",
         {
@@ -218,6 +297,7 @@ function Home() {
           body: JSON.stringify({
             text: documentText,
             ...(salesPageText.trim() ? { salesPageText: salesPageText.trim() } : {}),
+            ...trendContext,
           }),
         },
         (attempt, sec) => setNode("extract", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
@@ -236,7 +316,10 @@ function Home() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ insights: extJson }),
+          body: JSON.stringify({
+            insights: extJson,
+            ...trendContext,
+          }),
         },
         (attempt, sec) => setNode("copy", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
       );
@@ -264,6 +347,7 @@ function Home() {
             brandColors: brandColors.filter((c) => c.trim()),
             hasReferenceBanners: referenceBanners.length > 0,
             style: generationStyle,
+            ...trendContext,
           }),
         },
         (attempt, sec) => setNode("concepts", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
@@ -328,9 +412,11 @@ function Home() {
       for (let i = 0; i < count; i++) {
         setNode("generate", "running", `Generating ${i + 1} of ${count}…`);
         const concept = conceptList[i % conceptList.length];
-        const headline = copyJson.variations?.[i % (copyJson.variations?.length ?? 1)]?.headline;
+        const copyVar = copyJson.variations?.[i % (copyJson.variations?.length ?? 1)];
+        const headline = copyVar?.headline;
         const imgJson = await fetchImageWithRetry(concept, headline);
         let imageBase64 = imgJson.image;
+        const hasLogo = Boolean(brandLogo);
         if (brandLogo) {
           try {
             imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
@@ -338,11 +424,38 @@ function Home() {
             imageBase64 = imgJson.image;
           }
         }
+
+        const reasoning: string[] = [];
+        const tags: BannerTag[] = [];
+
+        if (currentTrendInsights?.trendingAngles?.length) {
+          const angles = currentTrendInsights.trendingAngles;
+          const angle = angles[i % angles.length];
+          const hookText = typeof angle === "string" ? angle : angle.hook;
+          reasoning.push(`Trend hook: ${hookText.slice(0, 100)}${hookText.length > 100 ? "…" : ""}`);
+          tags.push({ label: hookText.slice(0, 50) + (hookText.length > 50 ? "…" : ""), type: "trend" });
+        }
+        reasoning.push(`Concept: ${concept.description.slice(0, 80)}${concept.description.length > 80 ? "…" : ""}`);
+        if (copyVar) {
+          reasoning.push(`Copy (${copyVar.type}): ${(headline ?? "").slice(0, 60)}${(headline ?? "").length > 60 ? "…" : ""}`);
+          tags.push({ label: copyVar.type, type: "copy" });
+        }
+        reasoning.push(generationStyle === "infographic" ? "Style: Infographic" : "Style: Typography");
+        if (brandColors.some((c) => c.trim())) {
+          reasoning.push(`Brand colors: ${brandColors.filter((c) => c.trim()).join(", ")}`);
+        }
+        if (referenceImagesForRequest?.length) {
+          reasoning.push(`${referenceImagesForRequest.length} reference image(s)`);
+        }
+        if (hasLogo) reasoning.push("Logo composited");
+
         generated.push({
           id: `banner-${i}-${Date.now()}`,
           imageBase64,
           conceptIndex: i,
           copySnippet: headline,
+          reasoning,
+          tags,
           createdAt: Date.now(),
         });
         if (i < count - 1 && delayMs > 0) {
@@ -354,9 +467,12 @@ function Home() {
       setBanners(library);
       setNode("generate", "success", `${generated.length} banners`);
       setNode("gallery", "success", `${library.length} in library`);
+      setSelectedNodeId("gallery");
+      setDrawerOpen(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Pipeline failed";
       setError(msg);
+      setNode("trends", "error");
       setNode("extract", "error");
       setNode("copy", "error");
       setNode("concepts", "error");
@@ -364,7 +480,7 @@ function Home() {
     } finally {
       setIsRunning(false);
     }
-  }, [documentText, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, imageGenerationCount, imageGenerationDelaySeconds, setNode]);
+  }, [documentText, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, imageGenerationCount, imageGenerationDelaySeconds, setNode, trendTopics, trendSources, trendInsights, locale]);
 
   const [isRunningInfographic, setIsRunningInfographic] = useState(false);
   const runInfographicVariations = useCallback(async () => {
@@ -439,6 +555,7 @@ function Home() {
         }
         const imgJson = JSON.parse(text) as { image: string };
         let imageBase64 = imgJson.image;
+        const hasLogo2 = Boolean(brandLogo);
         if (brandLogo) {
           try {
             imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
@@ -446,11 +563,24 @@ function Home() {
             imageBase64 = imgJson.image;
           }
         }
+        const infraReasoning: string[] = ["Style: Infographic from references"];
+        const infraTags: BannerTag[] = [{ label: "infographic", type: "style" }];
+        if (topicOrHeadline) {
+          infraReasoning.push(`Topic: ${topicOrHeadline.slice(0, 60)}`);
+          infraTags.push({ label: topicOrHeadline.slice(0, 40), type: "meta" });
+        }
+        if (descriptionFromRef) infraReasoning.push(`Ref analysis: ${descriptionFromRef.slice(0, 80)}…`);
+        infraReasoning.push(`${refsCapped.length} reference image(s)`);
+        if (brandColors.some((c) => c.trim())) infraReasoning.push(`Brand colors: ${brandColors.filter((c) => c.trim()).join(", ")}`);
+        if (hasLogo2) infraReasoning.push("Logo composited");
+
         generated.push({
           id: `infographic-${i}-${Date.now()}`,
           imageBase64,
           conceptIndex: i,
           copySnippet: topicOrHeadline,
+          reasoning: infraReasoning,
+          tags: infraTags,
           createdAt: Date.now(),
         });
         if (i < count - 1 && delayMs > 0) {
@@ -461,6 +591,7 @@ function Home() {
       setCurrentRunBanners(generated);
       setBanners(library);
       setSelectedNodeId("gallery");
+      setDrawerOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Infographic variations failed");
     } finally {
@@ -468,9 +599,72 @@ function Home() {
     }
   }, [referenceBanners, imageGenerationCount, imageGenerationDelaySeconds, infographicTopicHeadline, brandLogo, brandColors]);
 
+  // Auto-extract trend topics then auto-scout when a document is loaded
+  const autoExtractedForDocRef = useRef("");
+  useEffect(() => {
+    if (!vaultRestoredRef.current) return;
+    const text = documentText.trim();
+    if (!text || text === autoExtractedForDocRef.current) return;
+    if (trendTopics.length > 0) return;
+
+    autoExtractedForDocRef.current = text;
+    setNode("trends", "running", "Extracting topics…");
+
+    const controller = new AbortController();
+    fetch("/api/trends/extract-topics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentText: text, salesPageText, locale }),
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(async (data: { topics?: TrendTopic[] }) => {
+        if (!data.topics?.length) {
+          setNode("trends", "idle");
+          return;
+        }
+        setTrendTopics(data.topics);
+        setNode("trends", "running", "Scouting trends…");
+
+        const enabledSources = trendSources.filter((s) => s.enabled);
+        if (enabledSources.length === 0) {
+          setNode("trends", "success", `${data.topics.length} topics`);
+          return;
+        }
+
+        const scoutRes = await fetch("/api/trends/scout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topics: data.topics.map((t) => t.keyword),
+            sources: trendSources,
+            locale,
+            documentText: text,
+            salesPageText,
+          }),
+          signal: controller.signal,
+        });
+        if (!scoutRes.ok || !scoutRes.body) throw new Error("Scout failed");
+        const insights = await consumeScoutStream(scoutRes, {
+          onSourceStart: (_i, label) => setNode("trends", "running", `Scanning ${label}…`),
+          onAnalyzing: () => setNode("trends", "running", "Connecting trends to product…"),
+        });
+        if (!insights) throw new Error("Scout failed");
+        setTrendInsights(insights);
+        setNode("trends", "success", `${insights.trendingAngles.length} angles`);
+      })
+      .catch(() => {
+        setNode("trends", "idle");
+      });
+
+    return () => controller.abort();
+  }, [documentText, salesPageText, locale, trendTopics.length, trendSources, setNode]);
+
   const handleParseDocument = useCallback(
     async (text: string) => {
       setDocumentText(text);
+      setTrendTopics([]);
+      autoExtractedForDocRef.current = "";
       setNode("upload", "success", `${text.slice(0, 50).replace(/\n/g, " ")}…`);
     },
     [setNode]
@@ -531,7 +725,7 @@ function Home() {
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <main className="flex-1 min-w-0 bg-[var(--surface-canvas)]">
+        <main className="relative flex-1 min-w-0 bg-[var(--surface-canvas)]">
           <PipelineCanvas
             onNodeSelect={(id) => {
               setSelectedNodeId(id);
@@ -540,6 +734,17 @@ function Home() {
             selectedNodeId={selectedNodeId}
             nodeData={nodeData}
           />
+          {!drawerOpen && (
+            <PipelineActivityLog
+              nodeStatus={nodeStatus}
+              nodeSummaries={nodeSummaries}
+              isRunning={isRunning}
+              onStepClick={(id) => {
+                setSelectedNodeId(id);
+                setDrawerOpen(true);
+              }}
+            />
+          )}
         </main>
         <PanelDrawer open={drawerOpen} onOpenChange={setDrawerOpen}>
           <ResultPanel
@@ -573,6 +778,12 @@ function Home() {
             concepts={concepts}
             banners={banners}
             currentRunBanners={currentRunBanners}
+            trendTopics={trendTopics}
+            onTrendTopicsChange={setTrendTopics}
+            trendSources={trendSources}
+            onTrendSourcesChange={setTrendSources}
+            trendInsights={trendInsights}
+            onTrendInsightsChange={setTrendInsights}
           />
         </PanelDrawer>
       </div>

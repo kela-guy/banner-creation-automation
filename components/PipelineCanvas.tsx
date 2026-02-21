@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { PipelineNode, type PipelineNodeData, type PipelineNodeType } from "@/components/nodes/PipelineNode";
 import {
   UploadIcon,
+  TrendsIcon,
   ExtractIcon,
   CopyIcon,
   ConceptIcon,
@@ -28,7 +29,7 @@ import { pipelineLabel, pipelineSummary, type PipelineNodeId } from "@/lib/trans
 const NODE_WIDTH = canvasConfig.nodeWidth;
 const GAP = canvasConfig.gap;
 
-const NODE_IDS: PipelineNodeId[] = ["upload", "extract", "copy", "concepts", "generate", "gallery"];
+const NODE_IDS: PipelineNodeId[] = ["upload", "trends", "extract", "copy", "concepts", "generate", "gallery"];
 
 const baseNodeConfig: Record<
   PipelineNodeId,
@@ -39,6 +40,12 @@ const baseNodeConfig: Record<
     iconBg: "bg-slate-700 dark:bg-slate-600",
     iconColor: "text-white",
     nodeType: "trigger",
+  },
+  trends: {
+    icon: <TrendsIcon />,
+    iconBg: "bg-teal-500",
+    iconColor: "text-white",
+    nodeType: "action",
   },
   extract: {
     icon: <ExtractIcon />,
@@ -90,7 +97,8 @@ function buildInitialNodes(locale: "en" | "he"): PipelineNodeType[] {
 }
 
 const initialEdges: Edge[] = [
-  { id: "e-upload-extract", source: "upload", target: "extract", type: "smoothstep" },
+  { id: "e-upload-trends", source: "upload", target: "trends", type: "smoothstep" },
+  { id: "e-trends-extract", source: "trends", target: "extract", type: "smoothstep" },
   { id: "e-extract-copy", source: "extract", target: "copy", type: "smoothstep" },
   { id: "e-copy-concepts", source: "copy", target: "concepts", type: "smoothstep" },
   { id: "e-concepts-generate", source: "concepts", target: "generate", type: "smoothstep" },

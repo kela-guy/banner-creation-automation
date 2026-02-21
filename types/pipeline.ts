@@ -22,12 +22,21 @@ export interface BannerConcept {
   rtlNotes: string;
 }
 
+export interface BannerTag {
+  label: string;
+  type: "copy" | "trend" | "style" | "meta";
+}
+
 export interface GeneratedBanner {
   id: string;
   imageBase64: string;
   conceptIndex: number;
   copySnippet?: string;
   createdAt: number;
+  /** Short bullet points explaining what inputs produced this result. */
+  reasoning?: string[];
+  /** Compact badges for quick identification. */
+  tags?: BannerTag[];
 }
 
 export type DocumentFormat = "text" | "pdf" | "docx";

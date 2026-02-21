@@ -50,12 +50,16 @@ export async function POST(request: NextRequest) {
     const brandColors = Array.isArray(body.brandColors) ? body.brandColors.filter((c: unknown) => typeof c === "string") : undefined;
     const hasReferenceBanners = Boolean(body.hasReferenceBanners);
     const useInfographicConcepts = body.style === "infographic" || Boolean(body.useInfographicConcepts);
+    const trendContext =
+      typeof body.trendContext === "string" ? body.trendContext : undefined;
+    const trendingAngles =
+      Array.isArray(body.trendingAngles) ? body.trendingAngles.map(String) : undefined;
 
     const response = await getGenAI(setup.apiKey).models.generateContent({
       model: TEXT_MODEL,
       contents: useInfographicConcepts
         ? getConceptsUserPromptInfographic(insights, sample, count, brandColors)
-        : getConceptsUserPrompt(insights, sample, count, brandColors, hasReferenceBanners),
+        : getConceptsUserPrompt(insights, sample, count, brandColors, hasReferenceBanners, trendContext, trendingAngles),
       config: {
         systemInstruction: useInfographicConcepts ? CONCEPTS_SYSTEM_INFOGRAPHIC : CONCEPTS_SYSTEM,
         responseMimeType: "application/json",

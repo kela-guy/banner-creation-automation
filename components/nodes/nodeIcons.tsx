@@ -8,6 +8,7 @@ import {
   Brain,
   Sparkle,
   ImagesSquare,
+  TrendUp,
 } from "@phosphor-icons/react";
 
 const ICON_SIZE = 28;
@@ -30,6 +31,10 @@ export function ConceptIcon() {
 
 export function GenerateIcon() {
   return <Brain size={ICON_SIZE} aria-hidden />;
+}
+
+export function TrendsIcon() {
+  return <TrendUp size={ICON_SIZE} aria-hidden />;
 }
 
 export function GalleryIcon() {

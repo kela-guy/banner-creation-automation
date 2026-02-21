@@ -1,13 +1,64 @@
 "use client";
 
 import { useCallback, useState, useRef, useEffect, useMemo } from "react";
-import type { GeneratedBanner } from "@/types/pipeline";
+import type { GeneratedBanner, BannerTag } from "@/types/pipeline";
 import { Button } from "@/components/ui/Button";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { ListBullets, GridFour } from "@phosphor-icons/react";
 import { getDriveAccessToken, uploadToDrive } from "@/lib/drive";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
 import { panelT } from "@/lib/translations";
+import { cn } from "@/lib/cn";
 
 export type GallerySortOption = "newest" | "oldest" | "concept" | "conceptDesc";
+
+const TAG_COLORS: Record<BannerTag["type"], string> = {
+  copy: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+  trend: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  style: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  meta: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
+};
+
+function TagBadge({ tag }: { tag: BannerTag }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setIsTruncated(el.scrollWidth > el.clientWidth);
+  }, [tag.label]);
+
+  const badge = (
+    <span
+      ref={ref}
+      className={cn(
+        "inline-block px-1.5 py-0.5 text-[10px] leading-tight font-medium border rounded-[3px] truncate max-w-[140px]",
+        TAG_COLORS[tag.type]
+      )}
+    >
+      {tag.label}
+    </span>
+  );
+
+  if (!isTruncated) return badge;
+
+  return (
+    <Tooltip.Root content={tag.label} side="top">
+      {badge}
+    </Tooltip.Root>
+  );
+}
+
+function TagBadges({ tags }: { tags?: BannerTag[] }) {
+  if (!tags?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map((tag, i) => (
+        <TagBadge key={i} tag={tag} />
+      ))}
+    </div>
+  );
+}
 
 export interface GalleryPanelProps {
   banners: GeneratedBanner[];
@@ -17,8 +68,10 @@ export interface GalleryPanelProps {
   hideSort?: boolean;
 }
 
-export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: GalleryPanelProps) {
+export function GalleryPanel({ banners, viewMode: externalViewMode, hideSort = false }: GalleryPanelProps) {
   const { locale } = useThemeAndLocale();
+  const [internalView, setInternalView] = useState<"grid" | "list">("grid");
+  const viewMode = externalViewMode ?? internalView;
   const [sortBy, setSortBy] = useState<GallerySortOption>("newest");
   const [previewBanner, setPreviewBanner] = useState<GeneratedBanner | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -171,7 +224,33 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {viewMode === "grid" && !hideSort && (
+        {!externalViewMode && (
+          <div className="flex rounded-md border border-[var(--border-default)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setInternalView("grid")}
+              className={cn(
+                "px-2 py-1.5 transition-colors",
+                viewMode === "grid" ? "bg-accent text-white" : "bg-[var(--surface-panel)] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              )}
+              aria-label="Grid view"
+            >
+              <GridFour size={16} weight="bold" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setInternalView("list")}
+              className={cn(
+                "px-2 py-1.5 transition-colors",
+                viewMode === "list" ? "bg-accent text-white" : "bg-[var(--surface-panel)] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              )}
+              aria-label="List view"
+            >
+              <ListBullets size={16} weight="bold" />
+            </button>
+          </div>
+        )}
+        {!hideSort && (
           <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
             <span>{panelT(locale, "sortBy")}</span>
             <select
@@ -252,13 +331,13 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
           {sortedBanners.map((b) => (
             <li
               key={b.id}
-              className="flex items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-card)] p-2.5 shadow-sm"
+              className="flex items-start gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-card)] p-2.5 shadow-sm"
             >
               <input
                 type="checkbox"
                 checked={selectedIds.has(b.id)}
                 onChange={() => toggleSelect(b.id)}
-                className="rounded border-[var(--border-default)] text-accent focus:ring-accent"
+                className="mt-1 rounded border-[var(--border-default)] text-accent focus:ring-accent"
                 aria-label={`${panelT(locale, "selectBanner")} ${b.conceptIndex + 1}`}
               />
               <button
@@ -273,9 +352,12 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
                   className="h-full w-full object-cover"
                 />
               </button>
-              <span className="min-w-0 flex-1 truncate text-sm text-[var(--foreground)]">
-                {b.copySnippet ? `${b.copySnippet.slice(0, 40)}…` : `Concept ${b.conceptIndex + 1}`}
-              </span>
+              <div className="flex-1 min-w-0 space-y-1">
+                <span className="block truncate text-sm text-[var(--foreground)]">
+                  {b.copySnippet ? `${b.copySnippet.slice(0, 50)}${b.copySnippet.length > 50 ? "…" : ""}` : `Concept ${b.conceptIndex + 1}`}
+                </span>
+                <TagBadges tags={b.tags} />
+              </div>
               <div className="flex shrink-0 gap-1">
                 <Button
                   type="button"
@@ -285,15 +367,6 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
                   aria-label={`${panelT(locale, "downloadBanner")} ${b.conceptIndex + 1}`}
                 >
                   {panelT(locale, "download")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="py-1.5 text-xs"
-                  onClick={() => setPreviewBanner(b)}
-                  aria-label={`${panelT(locale, "previewBanner")} ${b.conceptIndex + 1}`}
-                >
-                  {panelT(locale, "previewBanner")}
                 </Button>
               </div>
             </li>
@@ -306,22 +379,10 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
             key={b.id}
             className="flex flex-col rounded-xl border border-[var(--border-default)] overflow-hidden bg-[var(--surface-card)] shadow-card"
           >
-            <label className="flex items-start gap-2 p-2 border-b border-[var(--border-default)] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedIds.has(b.id)}
-                onChange={() => toggleSelect(b.id)}
-                className="mt-1 rounded border-[var(--border-default)] text-accent focus:ring-accent"
-                aria-label={`${panelT(locale, "selectBanner")} ${b.conceptIndex + 1}`}
-              />
-              <span className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400 flex-1">
-                {b.copySnippet ? `${b.copySnippet.slice(0, 24)}…` : `Concept ${b.conceptIndex + 1}`}
-              </span>
-            </label>
             <button
               type="button"
               onClick={() => setPreviewBanner(b)}
-              className="block w-full text-left focus:outline-none focus:ring-2 focus:ring-accent focus:ring-inset rounded-b-xl"
+              className="block w-full text-left focus:outline-none focus:ring-2 focus:ring-accent focus:ring-inset"
               aria-label={`${panelT(locale, "previewBanner")} ${b.conceptIndex + 1}`}
             >
               <img
@@ -330,15 +391,31 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
                 className="aspect-square w-full object-cover"
               />
             </button>
-            <div className="flex items-center justify-end gap-2 p-2.5">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => downloadOne(b)}
-                aria-label={`${panelT(locale, "downloadBanner")} ${b.conceptIndex + 1}`}
-              >
-                {panelT(locale, "download")}
-              </Button>
+            <div className="p-2 space-y-1.5">
+              <TagBadges tags={b.tags} />
+              <div className="flex items-center justify-between gap-1">
+                <label className="flex items-center gap-1.5 cursor-pointer min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(b.id)}
+                    onChange={() => toggleSelect(b.id)}
+                    className="rounded border-[var(--border-default)] text-accent focus:ring-accent"
+                    aria-label={`${panelT(locale, "selectBanner")} ${b.conceptIndex + 1}`}
+                  />
+                  <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                    {b.copySnippet ? `${b.copySnippet.slice(0, 20)}…` : `#${b.conceptIndex + 1}`}
+                  </span>
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-xs py-1 shrink-0"
+                  onClick={() => downloadOne(b)}
+                  aria-label={`${panelT(locale, "downloadBanner")} ${b.conceptIndex + 1}`}
+                >
+                  {panelT(locale, "download")}
+                </Button>
+              </div>
             </div>
           </div>
         ))}
@@ -363,28 +440,35 @@ export function GalleryPanel({ banners, viewMode = "grid", hideSort = false }: G
               alt={`Banner ${previewBanner.conceptIndex + 1} preview`}
               className="max-h-[85vh] max-w-full w-auto h-auto object-contain"
             />
-            <div className="flex items-center justify-between gap-2 p-3 border-t border-[var(--border-default)]">
-              <span className="text-sm text-slate-500 dark:text-slate-400 truncate">
-                {previewBanner.copySnippet ?? `Concept ${previewBanner.conceptIndex + 1}`}
-              </span>
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => downloadOne(previewBanner)}
-                >
-                  {panelT(locale, "download")}
-                </Button>
-                <Button
-                  ref={previewCloseRef}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setPreviewBanner(null)}
-                  aria-label={panelT(locale, "closePreview")}
-                >
-                  {panelT(locale, "close")}
-                </Button>
+            <div className="p-3 border-t border-[var(--border-default)]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                  {previewBanner.copySnippet ?? `Concept ${previewBanner.conceptIndex + 1}`}
+                </span>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => downloadOne(previewBanner)}
+                  >
+                    {panelT(locale, "download")}
+                  </Button>
+                  <Button
+                    ref={previewCloseRef}
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setPreviewBanner(null)}
+                    aria-label={panelT(locale, "closePreview")}
+                  >
+                    {panelT(locale, "close")}
+                  </Button>
+                </div>
               </div>
+              {previewBanner.tags && previewBanner.tags.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
+                  <TagBadges tags={previewBanner.tags} />
+                </div>
+              )}
             </div>
           </div>
         </div>

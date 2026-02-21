@@ -7,7 +7,13 @@ import type { ExtractResult } from "@/types/pipeline";
 
 function parseExtractJson(raw: string): ExtractResult {
   const text = sanitizeJsonForParse(raw);
-  const parsed = JSON.parse(text) as Record<string, unknown>;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch (e) {
+    console.error("Failed to parse extract JSON. Raw (first 500 chars):", raw.slice(0, 500));
+    throw e;
+  }
   return {
     painPoints: Array.isArray(parsed.painPoints)
       ? parsed.painPoints.map(String)
@@ -37,10 +43,14 @@ export async function POST(request: NextRequest) {
     }
     const salesPageText =
       typeof body.salesPageText === "string" ? body.salesPageText : undefined;
+    const trendContext =
+      typeof body.trendContext === "string" ? body.trendContext : undefined;
+    const trendingAngles =
+      Array.isArray(body.trendingAngles) ? body.trendingAngles.map(String) : undefined;
 
     const response = await getGenAI(setup.apiKey).models.generateContent({
       model: TEXT_MODEL,
-      contents: getExtractUserPrompt(text, salesPageText),
+      contents: getExtractUserPrompt(text, salesPageText, trendContext, trendingAngles),
       config: {
         systemInstruction: EXTRACT_SYSTEM,
         responseMimeType: "application/json",
