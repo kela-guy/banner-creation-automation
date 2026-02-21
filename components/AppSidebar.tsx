@@ -36,10 +36,10 @@ export function AppSidebar() {
 
   return (
     <aside
-      className="flex w-14 shrink-0 flex-col gap-4 border-e-0 border-e-transparent [border-inline-end-style:none] [border-image:none] bg-[var(--surface-panel)] pt-16 shadow-[0px_0px_4px_0px_rgba(0,0,0,0.15)] rtl:border-e-0 rtl:border-s rtl:border-[var(--border-default)]"
+      className="flex w-14 shrink-0 flex-col gap-4 border-e-0 border-e-transparent [border-inline-end-style:none] [border-image:none] bg-[var(--surface-panel)] pt-16 shadow-[2px_0px_4px_0px_rgba(87,117,167,0.05),0px_0px_4px_0px_rgba(0,0,0,0.15)] rtl:border-e-0 rtl:border-s rtl:border-[var(--border-default)]"
       aria-label="App navigation"
     >
-      <nav className="flex flex-1 flex-col gap-4 p-2" aria-label="Pages">
+      <nav className="flex flex-1 flex-col items-center justify-start gap-4 p-2" aria-label="Pages">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive =
             href === "/"
