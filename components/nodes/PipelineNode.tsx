@@ -168,12 +168,28 @@ function PipelineNodeComponent({ data, selected }: NodeProps<PipelineNodeType>) 
           </h3>
         </div>
 
-        {/* Description (reference: bg-slate-50/50 rounded-lg p-3 -mx-3 mb-4) */}
-        {summary && (
+        {/* Description: always show when running so step progress is visible */}
+        {(summary || isRunning) && (
           <div className={descriptionBox.wrapper}>
-            <p className={descriptionBox.text} title={summary}>
-              {summary}
+            <p className={descriptionBox.text} title={summary ?? undefined}>
+              {summary || t(locale, "running")}
             </p>
+          </div>
+        )}
+
+        {/* Running indicator: thin progress pulse at bottom of card */}
+        {isRunning && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-xl overflow-hidden bg-amber-200/60 dark:bg-amber-900/40"
+            aria-hidden
+          >
+            <motion.div
+              className="h-full bg-amber-500 dark:bg-amber-400"
+              initial={{ x: "-100%" }}
+              animate={{ x: "100%" }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              style={{ width: "40%" }}
+            />
           </div>
         )}
 

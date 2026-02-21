@@ -3,12 +3,26 @@ import { getGenAI, IMAGE_MODEL } from "@/lib/genai";
 import { getSetup } from "@/lib/setupStore";
 import { getImagePrompt, getInfographicImagePrompt, getInfographicImagePromptFromConcept } from "@/lib/prompts";
 
+/** Vercel: allow up to 60s for image generation (Pro). Default is 10s on Hobby. */
+export const maxDuration = 60;
+
+/** Request body over this size may hit Vercel 4.5MB limit. */
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 /**
  * Generates a single banner image.
  * style: "typography" (default) = minimal typography-focused; "infographic" = cartoon/diagrams/Hebrew labels.
  */
 export async function POST(request: NextRequest) {
   try {
+    const contentLength = request.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
+      return NextResponse.json(
+        { error: "Request too large. Use fewer or smaller reference images." },
+        { status: 413 }
+      );
+    }
+
     const setup = await getSetup();
     if (!setup?.apiKey || setup.provider !== "google") {
       return NextResponse.json(

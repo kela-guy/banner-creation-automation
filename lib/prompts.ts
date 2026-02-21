@@ -1,4 +1,4 @@
-export const EXTRACT_SYSTEM = `You are a State-of-the-Art (SoTA) Marketer. Analyze the provided product AVATAR persona document and extract structured insights. Be specific and actionable.`;
+export const EXTRACT_SYSTEM = `You are a State-of-the-Art (SoTA) Marketer. Analyze the provided product AVATAR persona document and extract structured insights in Hebrew (עברית). All extracted text (pain points, desires, USPs) must be written in Hebrew. Be specific and actionable.`;
 
 const AVATAR_MAX_CHARS = 30_000;
 const SALES_PAGE_MAX_CHARS = 15_000;
@@ -7,10 +7,10 @@ export function getExtractUserPrompt(
   documentText: string,
   salesPageText?: string
 ): string {
-  const avatarSection = `Analyze this Avatar persona document and return a single JSON object with exactly these keys (all arrays of strings):
-- painPoints: list of customer pain points
-- desires: list of customer desires/goals
-- usps: list of unique selling propositions
+  const avatarSection = `Analyze this Avatar persona document and return a single JSON object with exactly these keys (all arrays of strings). Write every item in Hebrew (עברית).
+- painPoints: list of customer pain points (נקודות כאב) — each string in Hebrew
+- desires: list of customer desires/goals (רצונות ומטרות) — each string in Hebrew
+- usps: list of unique selling propositions (יתרונות ייחודיים) — each string in Hebrew
 
 Document:
 ---
@@ -30,12 +30,12 @@ ${capped}
 ${salesPageText.trim().length > SALES_PAGE_MAX_CHARS ? "\n[...truncated]" : ""}
 ---
 
-Return only valid JSON, no markdown or explanation. Same schema: painPoints, desires, usps (all arrays of strings).`;
+Return only valid JSON, no markdown or explanation. Same schema: painPoints, desires, usps (all arrays of strings). Every string in each array must be in Hebrew.`;
   }
 
   return `${avatarSection}
 
-Return only valid JSON, no markdown or explanation.`;
+Return only valid JSON, no markdown or explanation. Every string in painPoints, desires, and usps must be in Hebrew.`;
 }
 
 export const COPY_SYSTEM = `You are a State-of-the-Art (SoTA) Marketer. Write compelling Facebook ad copy in Hebrew. Use modern, natural Hebrew that resonates with the target demographic. Focus on scroll-stopping headlines and body text that drives action. Use marketing terminology correctly (USP, CTR, ROAS) where appropriate. Be sharp, persuasive, and authoritative.`;

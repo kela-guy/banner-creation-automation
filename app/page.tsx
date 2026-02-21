@@ -21,6 +21,9 @@ const NODE_IDS = ["upload", "extract", "copy", "concepts", "generate", "gallery"
 /** Max banners per run. Loop generates this many, one at a time with pause, to avoid rate limits. */
 const MAX_BANNERS_PER_RUN = 15;
 
+/** Max reference images sent to generate-image to keep request body under Vercel 4.5MB limit. */
+const MAX_REFERENCE_IMAGES_FOR_GENERATE = 2;
+
 /** Backoff wait times in seconds when API returns 429. */
 const RATE_LIMIT_BACKOFF_SECONDS = [60, 120, 180];
 
@@ -283,6 +286,11 @@ function Home() {
       const delayMs = delaySeconds * 1000;
       const generated: GeneratedBanner[] = [];
 
+      const referenceImagesForRequest =
+        referenceBanners.length > 0
+          ? referenceBanners.slice(0, MAX_REFERENCE_IMAGES_FOR_GENERATE)
+          : undefined;
+
       const fetchImageWithRetry = async (concept: BannerConcept, headline: string | undefined): Promise<{ image: string }> => {
         const res = await fetchWith429Retry(
           "/api/generate-image",
@@ -293,17 +301,27 @@ function Home() {
               concept,
               headline,
               brandColors: brandColors.filter((c) => c.trim()),
-              referenceImages: referenceBanners.length > 0 ? referenceBanners : undefined,
+              referenceImages: referenceImagesForRequest,
               style: generationStyle,
             }),
           },
           (attempt, sec) => setNode("generate", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
         );
+        const text = await res.text();
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string })?.error ?? res.statusText);
+          if (res.status === 413) {
+            throw new Error("Request too large. Use fewer or smaller reference images.");
+          }
+          let errMsg: string;
+          try {
+            const body = JSON.parse(text) as { error?: string };
+            errMsg = body?.error ?? res.statusText;
+          } catch {
+            errMsg = res.status >= 500 ? "Image generation failed (server error)." : res.statusText;
+          }
+          throw new Error(errMsg);
         }
-        return res.json() as Promise<{ image: string }>;
+        return JSON.parse(text) as { image: string };
       };
 
       // Generate one banner per concept (loop between concepts and generate nodes).
@@ -360,13 +378,14 @@ function Home() {
     try {
       const count = Math.min(Math.max(1, imageGenerationCount), MAX_BANNERS_PER_RUN);
       const delayMs = Math.max(10, imageGenerationDelaySeconds) * 1000;
+      const refsCapped = referenceBanners.slice(0, MAX_REFERENCE_IMAGES_FOR_GENERATE);
       let descriptionFromRef: string | undefined;
       try {
         const describeRes = await fetchWith429Retry("/api/describe-reference", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            referenceImages: referenceBanners,
+            referenceImages: refsCapped,
             imageCount: count,
           }),
         });
@@ -395,7 +414,7 @@ function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               style: "infographic",
-              referenceImages: referenceBanners,
+              referenceImages: refsCapped,
               topic: topicOrHeadline,
               headline,
               brandColors: brandColors.filter((c) => c.trim()),
@@ -404,11 +423,21 @@ function Home() {
           },
           () => {}
         );
+        const text = await res.text();
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string })?.error ?? res.statusText);
+          if (res.status === 413) {
+            throw new Error("Request too large. Use fewer or smaller reference images.");
+          }
+          let errMsg: string;
+          try {
+            const body = JSON.parse(text) as { error?: string };
+            errMsg = body?.error ?? res.statusText;
+          } catch {
+            errMsg = res.status >= 500 ? "Image generation failed (server error)." : res.statusText;
+          }
+          throw new Error(errMsg);
         }
-        const imgJson = (await res.json()) as { image: string };
+        const imgJson = JSON.parse(text) as { image: string };
         let imageBase64 = imgJson.image;
         if (brandLogo) {
           try {
@@ -515,6 +544,8 @@ function Home() {
         <PanelDrawer open={drawerOpen} onOpenChange={setDrawerOpen}>
           <ResultPanel
             selectedNodeId={selectedNodeId}
+            nodeStatus={nodeStatus}
+            nodeSummaries={nodeSummaries}
             documentText={documentText}
             onDocumentParsed={handleParseDocument}
             salesPageUrl={salesPageUrl}

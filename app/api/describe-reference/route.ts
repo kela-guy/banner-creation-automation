@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGenAI, TEXT_MODEL } from "@/lib/genai";
 import { getSetup } from "@/lib/setupStore";
 import { DESCRIBE_REFERENCE_SYSTEM, getDescribeReferenceUserPrompt } from "@/lib/prompts";
+import { sanitizeJsonForParse } from "@/lib/sanitizeJson";
 
 /**
  * Describes reference image(s) for infographic-style variation generation.
@@ -60,9 +61,7 @@ export async function POST(request: NextRequest) {
 
     let parsed: { styleSummary?: string; structureSummary?: string; suggestedVariationTopics?: string[] };
     try {
-      let text = output.trim();
-      const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (codeBlock) text = codeBlock[1].trim();
+      const text = sanitizeJsonForParse(output);
       parsed = JSON.parse(text) as typeof parsed;
     } catch {
       return NextResponse.json(

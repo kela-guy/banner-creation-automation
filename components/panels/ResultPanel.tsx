@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState, useRef, useEffect } from "react";
-import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle } from "@/types/pipeline";
+import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle, RunStatus } from "@/types/pipeline";
+import { CircleNotch } from "@phosphor-icons/react";
 import { CopyList } from "@/components/panels/CopyList";
 import { GalleryPanel } from "@/components/panels/GalleryPanel";
 import { Button } from "@/components/ui/Button";
@@ -15,8 +16,32 @@ import { Tooltip } from "@/components/ui/Tooltip";
 const MIN_PASTE_CHARS = 50;
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.doc,.txt,.md";
 
+function StepLoadingBlock({
+  message,
+  subtitle,
+}: {
+  message: string;
+  subtitle?: string;
+}) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 rounded-[var(--panel-radius)] border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 px-6 py-5"
+      role="status"
+      aria-live="polite"
+    >
+      <CircleNotch size={28} weight="bold" className="animate-spin text-amber-600 dark:text-amber-400" />
+      <p className="text-sm font-medium text-[var(--foreground)]">{message}</p>
+      {subtitle && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 text-center">{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
 export interface ResultPanelProps {
   selectedNodeId: string | null;
+  nodeStatus?: Record<string, RunStatus>;
+  nodeSummaries?: Record<string, string>;
   documentText: string;
   onDocumentParsed: (text: string) => void;
   salesPageUrl: string;
@@ -48,6 +73,8 @@ export interface ResultPanelProps {
 
 export function ResultPanel({
   selectedNodeId,
+  nodeStatus = {},
+  nodeSummaries = {},
   documentText,
   onDocumentParsed,
   salesPageUrl,
@@ -644,6 +671,7 @@ export function ResultPanel({
   }
 
   if (selectedNodeId === "extract") {
+    const extractRunning = nodeStatus.extract === "running";
     return (
       <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-col gap-[var(--panel-gap)] p-[var(--panel-padding)] panel-content-text flex-1 min-h-0 overflow-auto">
@@ -651,10 +679,18 @@ export function ResultPanel({
           <h2 className="panel-heading-text font-semibold text-[var(--foreground)]">{panelT(locale, "extractedInsights")}</h2>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "extractedSubtitle")}</p>
         </div>
+        {extractRunning && (
+          <StepLoadingBlock
+            message={panelT(locale, "stepExtracting")}
+            subtitle={nodeSummaries.extract}
+          />
+        )}
         {!insights ? (
-          <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-8 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToExtract")}</p>
-          </div>
+          !extractRunning && (
+            <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-8 text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToExtract")}</p>
+            </div>
+          )
         ) : (
           <>
             {((insights.painPoints.length < 2) || (insights.desires.length < 2) || (insights.usps.length < 2)) && (
@@ -702,15 +738,24 @@ export function ResultPanel({
   }
 
   if (selectedNodeId === "copy") {
+    const copyRunning = nodeStatus.copy === "running";
     return (
       <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-col gap-[var(--panel-gap)] p-[var(--panel-padding)] panel-content-text flex-1 min-h-0 overflow-auto">
+        {copyRunning && (
+          <StepLoadingBlock
+            message={panelT(locale, "stepGeneratingCopy")}
+            subtitle={nodeSummaries.copy}
+          />
+        )}
         <ConfigAccordion defaultValue={["copy"]}>
           <ConfigAccordion.Section value="copy" title={panelT(locale, "hebrewCopyTitle")}>
             {copyVariations.length === 0 ? (
-              <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-6 text-center">
-                <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToGenerateCopy")}</p>
-              </div>
+              !copyRunning && (
+                <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-6 text-center">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToGenerateCopy")}</p>
+                </div>
+              )
             ) : (
               <>
                 <p className="mb-3 text-xs text-slate-500 dark:text-slate-400" role="status">
@@ -727,15 +772,24 @@ export function ResultPanel({
   }
 
   if (selectedNodeId === "concepts") {
+    const conceptsRunning = nodeStatus.concepts === "running";
     return (
       <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-col gap-[var(--panel-gap)] p-[var(--panel-padding)] panel-content-text flex-1 min-h-0 overflow-auto">
+        {conceptsRunning && (
+          <StepLoadingBlock
+            message={panelT(locale, "stepGeneratingConcepts")}
+            subtitle={nodeSummaries.concepts}
+          />
+        )}
         <ConfigAccordion defaultValue={["concepts"]}>
           <ConfigAccordion.Section value="concepts" title={panelT(locale, "conceptsTitle")}>
             {concepts.length === 0 ? (
-              <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-6 text-center">
-                <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToGenerateConcepts")}</p>
-              </div>
+              !conceptsRunning && (
+                <div className="rounded-[var(--panel-radius)] border border-dashed border-[var(--border-default)] bg-[var(--surface-card)] p-6 text-center">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{panelT(locale, "runToGenerateConcepts")}</p>
+                </div>
+              )
             ) : (
               <ul className="space-y-3">
                 {concepts.map((c, i) => (
@@ -759,10 +813,17 @@ export function ResultPanel({
   }
 
   if (selectedNodeId === "generate") {
+    const generateRunning = nodeStatus.generate === "running";
     const maxBanners = 15;
     return (
       <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-col gap-[var(--panel-gap)] p-[var(--panel-padding)] panel-content-text flex-1 min-h-0 overflow-auto">
+        {generateRunning && (
+          <StepLoadingBlock
+            message={panelT(locale, "stepGeneratingBanners")}
+            subtitle={nodeSummaries.generate}
+          />
+        )}
         <ConfigAccordion defaultValue={["count", "delay", "run"]}>
           <ConfigAccordion.Section value="count" title={panelT(locale, "howManyImages")}>
             <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">

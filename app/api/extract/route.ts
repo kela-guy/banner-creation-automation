@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGenAI, TEXT_MODEL } from "@/lib/genai";
 import { getSetup } from "@/lib/setupStore";
 import { EXTRACT_SYSTEM, getExtractUserPrompt } from "@/lib/prompts";
+import { sanitizeJsonForParse } from "@/lib/sanitizeJson";
 import type { ExtractResult } from "@/types/pipeline";
 
 function parseExtractJson(raw: string): ExtractResult {
-  let text = raw.trim();
-  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlock) text = codeBlock[1].trim();
+  const text = sanitizeJsonForParse(raw);
   const parsed = JSON.parse(text) as Record<string, unknown>;
   return {
     painPoints: Array.isArray(parsed.painPoints)

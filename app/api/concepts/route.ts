@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGenAI, TEXT_MODEL } from "@/lib/genai";
 import { getSetup } from "@/lib/setupStore";
 import { CONCEPTS_SYSTEM, getConceptsUserPrompt, CONCEPTS_SYSTEM_INFOGRAPHIC, getConceptsUserPromptInfographic } from "@/lib/prompts";
+import { sanitizeJsonForParse } from "@/lib/sanitizeJson";
 import type { BannerConcept } from "@/types/pipeline";
 import type { CopyVariation } from "@/types/pipeline";
 
 function parseConceptsJson(raw: string): { concepts: BannerConcept[] } {
-  let text = raw.trim();
-  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlock) text = codeBlock[1].trim();
+  const text = sanitizeJsonForParse(raw);
   const parsed = JSON.parse(text) as { concepts?: unknown[] };
   const concepts = Array.isArray(parsed.concepts) ? parsed.concepts : [];
   return {

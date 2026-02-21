@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGenAI, TEXT_MODEL } from "@/lib/genai";
 import { getSetup } from "@/lib/setupStore";
 import { COPY_SYSTEM, getCopyUserPrompt } from "@/lib/prompts";
+import { sanitizeJsonForParse } from "@/lib/sanitizeJson";
 import type { CopyVariation, CopyType } from "@/types/pipeline";
 
 function parseCopyJson(raw: string): { variations: CopyVariation[] } {
-  let text = raw.trim();
-  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlock) text = codeBlock[1].trim();
+  const text = sanitizeJsonForParse(raw);
   const parsed = JSON.parse(text) as { variations?: unknown[] };
   const variations = Array.isArray(parsed.variations) ? parsed.variations : [];
   const validTypes: CopyType[] = ["curiosity", "benefit", "scarcity"];
