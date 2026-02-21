@@ -4,6 +4,16 @@ import type { TrendResult } from "@/types/trends";
 const googleTrends = require("google-trends-api");
 
 const MAX_TOPICS = 5;
+const PER_TOPIC_TIMEOUT_MS = 6000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Google Trends timeout")), ms)
+    ),
+  ]);
+}
 
 export async function fetchGoogleTrends(topics: string[]): Promise<TrendResult[]> {
   const results: TrendResult[] = [];
@@ -11,11 +21,14 @@ export async function fetchGoogleTrends(topics: string[]): Promise<TrendResult[]
 
   for (const topic of capped) {
     try {
-      const raw: string = await googleTrends.relatedQueries({
-        keyword: topic,
-        hl: "he",
-        geo: "IL",
-      });
+      const raw: string = await withTimeout(
+        googleTrends.relatedQueries({
+          keyword: topic,
+          hl: "he",
+          geo: "IL",
+        }),
+        PER_TOPIC_TIMEOUT_MS
+      );
       const parsed = JSON.parse(raw) as {
         default?: {
           rankedList?: Array<{
@@ -42,7 +55,7 @@ export async function fetchGoogleTrends(topics: string[]): Promise<TrendResult[]
         }
       }
     } catch {
-      // Individual topic failure — continue with others
+      // Individual topic failure (timeout or blocked) — continue with others
     }
   }
 

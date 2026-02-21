@@ -2,8 +2,6 @@
 
 import { memo } from "react";
 import { Handle, type NodeProps, type Node, Position } from "@xyflow/react";
-import { motion } from "motion/react";
-import { CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
 import { t } from "@/lib/translations";
@@ -104,16 +102,16 @@ function PipelineNodeComponent({ data, selected }: NodeProps<PipelineNodeType>) 
           aria-hidden
         >
           {isRunning ? (
-            <motion.div
+            <span
               className={cn(
-                "flex items-center justify-center",
+                "flex items-center justify-center animate-spin",
                 nodeType === "trigger" ? "text-blue-500" : "text-slate-500 dark:text-slate-400"
               )}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             >
-              <CircleNotch size={12} weight="fill" />
-            </motion.div>
+              <svg width={12} height={12} viewBox="0 0 256 256" fill="currentColor" aria-hidden>
+                <path d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z" />
+              </svg>
+            </span>
           ) : (
             <span
               className="w-3 h-3 rounded-full border-2 border-current opacity-50"
@@ -183,12 +181,8 @@ function PipelineNodeComponent({ data, selected }: NodeProps<PipelineNodeType>) 
             className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-xl overflow-hidden bg-amber-200/60 dark:bg-amber-900/40"
             aria-hidden
           >
-            <motion.div
-              className="h-full bg-amber-500 dark:bg-amber-400"
-              initial={{ x: "-100%" }}
-              animate={{ x: "100%" }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              style={{ width: "40%" }}
+            <div
+              className="h-full w-[40%] bg-amber-500 dark:bg-amber-400 animate-[progress-slide_1.5s_ease-in-out_infinite]"
             />
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, memo } from "react";
 import {
   CircleNotch,
   CheckCircle,
@@ -31,7 +31,7 @@ interface PipelineActivityLogProps {
   onStepClick: (nodeId: string) => void;
 }
 
-export function PipelineActivityLog({
+export const PipelineActivityLog = memo(function PipelineActivityLog({
   nodeStatus,
   nodeSummaries,
   isRunning,
@@ -213,4 +213,4 @@ export function PipelineActivityLog({
       )}
     </div>
   );
-}
+});

@@ -1,13 +1,9 @@
 @import "../node_modules/tw-animate-css/dist/tw-animate.css";
-@import "../node_modules/shadcn/dist/tailwind.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-hebrew: "Heebo", "Rubik", "Assistant", system-ui, sans-serif;
-
   /* OKLCH palette (hue 259.597) */
   --color-1: oklch(0.17 0.026 259.597);
   --color-2: oklch(0.365 0.056 259.597);
@@ -165,9 +161,6 @@ body {
     --sidebar-border: oklch(0.35 0.03 259.597);
     --sidebar-ring: var(--color-2);
   }
-  .theme {
-    --font-sans: var(--font-sans);
-  }
   *:focus {
     outline: none;
   }
@@ -178,4 +171,9 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
 }

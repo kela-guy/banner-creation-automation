@@ -1,17 +1,27 @@
 "use client";
 
-import { useCallback, useState, useMemo, useEffect, useRef, use, Suspense } from "react";
+import { useCallback, useState, useMemo, useEffect, useRef, use, Suspense, startTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { PipelineCanvas } from "@/components/PipelineCanvas";
+import dynamic from "next/dynamic";
 import { ResultPanel } from "@/components/panels/ResultPanel";
 import { PanelDrawer } from "@/components/PanelDrawer";
-import { Onboarding } from "@/components/Onboarding";
+
+const PipelineCanvas = dynamic(
+  () => import("@/components/PipelineCanvas").then((m) => ({ default: m.PipelineCanvas })),
+  { ssr: false }
+);
+
+const Onboarding = dynamic(
+  () => import("@/components/Onboarding").then((m) => ({ default: m.Onboarding })),
+  { ssr: false }
+);
 import { useFullScreenLayout } from "@/components/FullScreenLayoutContext";
 import { Button } from "@/components/ui/Button";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
 import { t } from "@/lib/translations";
 import { loadVault, saveVault } from "@/lib/vault";
-import { compositeLogoOntoBanner } from "@/lib/compositeLogo";
+
+
 import { loadLibrary, addToLibrary } from "@/lib/bannerLibrary";
 import { PipelineActivityLog } from "@/components/PipelineActivityLog";
 import { consumeScoutStream } from "@/lib/consumeScoutStream";
@@ -157,34 +167,32 @@ function Home() {
     return () => clearTimeout(t);
   }, []);
 
-  // Persist vault when user changes anything (only after restore so we don't overwrite with empty)
+  // Persist vault when user changes anything (debounced to avoid blocking main thread on every keystroke)
   useEffect(() => {
     if (!vaultRestoredRef.current) return;
-    saveVault({
-      documentText,
-      salesPageUrl,
-      salesPageText,
-      brandLogo,
-      brandColors,
-      referenceBanners,
-      generationStyle,
-      trendTopics,
-      trendSources,
-      trendInsights,
-    });
+    const id = setTimeout(() => {
+      saveVault({
+        documentText,
+        salesPageUrl,
+        salesPageText,
+        brandLogo,
+        brandColors,
+        referenceBanners,
+        generationStyle,
+        trendTopics,
+        trendSources,
+        trendInsights,
+      });
+    }, 500);
+    return () => clearTimeout(id);
   }, [documentText, salesPageUrl, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, trendTopics, trendSources, trendInsights]);
-
-  // Load banner library (last 30 days) on mount
-  useEffect(() => {
-    setBanners(loadLibrary());
-  }, []);
 
   const [imageGenerationCount, setImageGenerationCount] = useState(1);
   const [imageGenerationDelaySeconds, setImageGenerationDelaySeconds] = useState(3);
   const [insights, setInsights] = useState<ExtractResult | null>(null);
   const [copyVariations, setCopyVariations] = useState<CopyVariation[]>([]);
   const [concepts, setConcepts] = useState<BannerConcept[]>([]);
-  const [banners, setBanners] = useState<GeneratedBanner[]>([]);
+  const [banners, setBanners] = useState<GeneratedBanner[]>(() => loadLibrary());
   const [currentRunBanners, setCurrentRunBanners] = useState<GeneratedBanner[]>([]);
   const [nodeStatus, setNodeStatus] = useState<Record<string, "idle" | "running" | "success" | "error">>({
     upload: "idle",
@@ -419,6 +427,7 @@ function Home() {
         const hasLogo = Boolean(brandLogo);
         if (brandLogo) {
           try {
+            const { compositeLogoOntoBanner } = await import("@/lib/compositeLogo");
             imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
           } catch {
             imageBase64 = imgJson.image;
@@ -463,20 +472,24 @@ function Home() {
         }
       }
       const library = addToLibrary(generated);
-      setCurrentRunBanners(generated);
-      setBanners(library);
-      setNode("generate", "success", `${generated.length} banners`);
-      setNode("gallery", "success", `${library.length} in library`);
-      setSelectedNodeId("gallery");
-      setDrawerOpen(true);
+      startTransition(() => {
+        setCurrentRunBanners(generated);
+        setBanners(library);
+        setNode("generate", "success", `${generated.length} banners`);
+        setNode("gallery", "success", `${library.length} in library`);
+        setSelectedNodeId("gallery");
+        setDrawerOpen(true);
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Pipeline failed";
-      setError(msg);
-      setNode("trends", "error");
-      setNode("extract", "error");
-      setNode("copy", "error");
-      setNode("concepts", "error");
-      setNode("generate", "error");
+      startTransition(() => {
+        setError(msg);
+        setNode("trends", "error");
+        setNode("extract", "error");
+        setNode("copy", "error");
+        setNode("concepts", "error");
+        setNode("generate", "error");
+      });
     } finally {
       setIsRunning(false);
     }
@@ -558,6 +571,7 @@ function Home() {
         const hasLogo2 = Boolean(brandLogo);
         if (brandLogo) {
           try {
+            const { compositeLogoOntoBanner } = await import("@/lib/compositeLogo");
             imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
           } catch {
             imageBase64 = imgJson.image;
@@ -588,10 +602,12 @@ function Home() {
         }
       }
       const library = addToLibrary(generated);
-      setCurrentRunBanners(generated);
-      setBanners(library);
-      setSelectedNodeId("gallery");
-      setDrawerOpen(true);
+      startTransition(() => {
+        setCurrentRunBanners(generated);
+        setBanners(library);
+        setSelectedNodeId("gallery");
+        setDrawerOpen(true);
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Infographic variations failed");
     } finally {
@@ -670,6 +686,14 @@ function Home() {
     [setNode]
   );
 
+  const handleNodeSelect = useCallback((id: string) => {
+    setSelectedNodeId(id);
+    setDrawerOpen(true);
+  }, []);
+
+  const handleOpenDrawer = useCallback(() => setDrawerOpen(true), []);
+  const handleOnboardingComplete = useCallback(() => setSetupComplete(true), []);
+
   if (setupComplete === null) {
     return (
       <div className="flex h-dvh items-center justify-center bg-[var(--background)]" aria-busy="true" aria-label="Loading">
@@ -679,7 +703,7 @@ function Home() {
   }
 
   if (forceOnboarding || !setupComplete) {
-    return <Onboarding onComplete={() => setSetupComplete(true)} />;
+    return <Onboarding onComplete={handleOnboardingComplete} />;
   }
 
   return (
@@ -709,7 +733,7 @@ function Home() {
             </div>
           )}
           {!drawerOpen && (
-            <Button type="button" variant="secondary" onClick={() => setDrawerOpen(true)}>
+            <Button type="button" variant="secondary" onClick={handleOpenDrawer}>
               {t(locale, "openPanel")}
             </Button>
           )}
@@ -727,10 +751,7 @@ function Home() {
       <div className="flex flex-1 min-h-0">
         <main className="relative flex-1 min-w-0 bg-[var(--surface-canvas)]">
           <PipelineCanvas
-            onNodeSelect={(id) => {
-              setSelectedNodeId(id);
-              setDrawerOpen(true);
-            }}
+            onNodeSelect={handleNodeSelect}
             selectedNodeId={selectedNodeId}
             nodeData={nodeData}
           />
@@ -739,10 +760,7 @@ function Home() {
               nodeStatus={nodeStatus}
               nodeSummaries={nodeSummaries}
               isRunning={isRunning}
-              onStepClick={(id) => {
-                setSelectedNodeId(id);
-                setDrawerOpen(true);
-              }}
+              onStepClick={handleNodeSelect}
             />
           )}
         </main>

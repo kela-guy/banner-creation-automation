@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect, useMemo } from "react";
 import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle, RunStatus } from "@/types/pipeline";
 import type { TrendTopic, TrendSource, TrendInsights, TrendAngle } from "@/types/trends";
 import { getAngleHook } from "@/types/trends";
@@ -89,10 +89,13 @@ export interface ResultPanelProps {
   onTrendInsightsChange: (insights: TrendInsights | null) => void;
 }
 
+const EMPTY_STATUS: Record<string, RunStatus> = {};
+const EMPTY_SUMMARIES: Record<string, string> = {};
+
 export function ResultPanel({
   selectedNodeId,
-  nodeStatus = {},
-  nodeSummaries = {},
+  nodeStatus = EMPTY_STATUS,
+  nodeSummaries = EMPTY_SUMMARIES,
   documentText,
   onDocumentParsed,
   salesPageUrl,
@@ -993,7 +996,7 @@ function TrendsPanel({
   const hasDocument = Boolean(documentText.trim());
   const hasTopics = trendTopics.length > 0;
 
-  const sourceLabel = (type: TrendSource["type"]): string => {
+  const sourceLabel = useCallback((type: TrendSource["type"]): string => {
     switch (type) {
       case "google_trends": return panelT(locale, "trendsGoogleTrends");
       case "reddit": return panelT(locale, "trendsReddit");
@@ -1001,7 +1004,7 @@ function TrendsPanel({
       case "twitter": return panelT(locale, "trendsTwitter");
       case "custom_url": return panelT(locale, "trendsCustomUrls");
     }
-  };
+  }, [locale]);
 
   const handleExtractTopics = useCallback(async () => {
     if (!hasDocument) return;
@@ -1180,17 +1183,23 @@ function TrendsPanel({
     return () => { if (twitterDebounceRef.current) clearTimeout(twitterDebounceRef.current); };
   }, [twitterToken, verifyTwitterToken]);
 
-  const sortedSources = [...trendSources].sort((a, b) => {
-    if (a.type === "custom_url") return 1;
-    if (b.type === "custom_url") return -1;
-    return 0;
-  });
+  const sortedSources = useMemo(
+    () => [...trendSources].sort((a, b) => {
+      if (a.type === "custom_url") return 1;
+      if (b.type === "custom_url") return -1;
+      return 0;
+    }),
+    [trendSources]
+  );
 
   const inputSm = "rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-2 text-[var(--foreground)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent";
 
-  const uniqueSources = trendInsights
-    ? [...new Set(trendInsights.results.map((r) => r.source))]
-    : [];
+  const uniqueSources = useMemo(
+    () => trendInsights
+      ? [...new Set(trendInsights.results.map((r) => r.source))]
+      : [],
+    [trendInsights]
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0">

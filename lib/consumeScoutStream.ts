@@ -9,9 +9,12 @@ export interface ScoutStreamCallbacks {
   onError?: (error: string) => void;
 }
 
+const STREAM_TIMEOUT_MS = 90_000;
+
 /**
  * Consumes an SSE stream from /api/trends/scout and fires callbacks for each step.
  * Returns the final TrendInsights or null on error.
+ * Aborts automatically after STREAM_TIMEOUT_MS if no completion event is received.
  */
 export async function consumeScoutStream(
   response: Response,
@@ -26,47 +29,63 @@ export async function consumeScoutStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let result: TrendInsights | null = null;
+  let lastActivity = Date.now();
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    let eventName = "";
-    for (const line of lines) {
-      if (line.startsWith("event: ")) {
-        eventName = line.slice(7).trim();
-      } else if (line.startsWith("data: ") && eventName) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          switch (eventName) {
-            case "source_start":
-              callbacks.onSourceStart?.(data.index, data.label, data.type);
-              break;
-            case "source_done":
-              callbacks.onSourceDone?.(data.index, data.label, data.type, data.count ?? 0, !!data.failed);
-              break;
-            case "phase":
-              if (data.phase === "fetched") callbacks.onFetched?.(data.totalResults ?? 0);
-              if (data.phase === "analyzing") callbacks.onAnalyzing?.();
-              break;
-            case "done":
-              result = data.insights as TrendInsights;
-              callbacks.onDone?.(result);
-              break;
-            case "error":
-              callbacks.onError?.(data.error ?? "Scouting failed");
-              break;
-          }
-        } catch {
-          // partial SSE data — skip
-        }
-        eventName = "";
+  const checkTimeout = setInterval(() => {
+    if (Date.now() - lastActivity > STREAM_TIMEOUT_MS) {
+      reader.cancel().catch(() => {});
+      clearInterval(checkTimeout);
+      if (!result) {
+        callbacks.onError?.("Scouting timed out — try again or disable slow sources.");
       }
     }
+  }, 5000);
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      lastActivity = Date.now();
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      let eventName = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventName = line.slice(7).trim();
+        } else if (line.startsWith("data: ") && eventName) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            switch (eventName) {
+              case "source_start":
+                callbacks.onSourceStart?.(data.index, data.label, data.type);
+                break;
+              case "source_done":
+                callbacks.onSourceDone?.(data.index, data.label, data.type, data.count ?? 0, !!data.failed);
+                break;
+              case "phase":
+                if (data.phase === "fetched") callbacks.onFetched?.(data.totalResults ?? 0);
+                if (data.phase === "analyzing") callbacks.onAnalyzing?.();
+                break;
+              case "done":
+                result = data.insights as TrendInsights;
+                callbacks.onDone?.(result);
+                break;
+              case "error":
+                callbacks.onError?.(data.error ?? "Scouting failed");
+                break;
+            }
+          } catch {
+            // partial SSE data — skip
+          }
+          eventName = "";
+        }
+      }
+    }
+  } finally {
+    clearInterval(checkTimeout);
   }
 
   return result;

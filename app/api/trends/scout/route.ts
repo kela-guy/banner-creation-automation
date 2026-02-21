@@ -160,35 +160,41 @@ export async function POST(request: NextRequest) {
 
         sendEvent(controller, encoder, "phase", { phase: "fetching", totalSources: jobs.length });
 
-        const rawResults: TrendResult[] = [];
-
-        for (let i = 0; i < jobs.length; i++) {
-          const job = jobs[i];
+        jobs.forEach((job, i) => {
           sendEvent(controller, encoder, "source_start", {
             index: i,
             label: job.label,
             type: job.type,
           });
+        });
 
-          try {
-            const results = await job.fetcher();
-            rawResults.push(...results);
-            sendEvent(controller, encoder, "source_done", {
-              index: i,
-              label: job.label,
-              type: job.type,
-              count: results.length,
-            });
-          } catch {
-            sendEvent(controller, encoder, "source_done", {
-              index: i,
-              label: job.label,
-              type: job.type,
-              count: 0,
-              failed: true,
-            });
-          }
-        }
+        const settled = await Promise.allSettled(
+          jobs.map(async (job, i) => {
+            try {
+              const results = await job.fetcher();
+              sendEvent(controller, encoder, "source_done", {
+                index: i,
+                label: job.label,
+                type: job.type,
+                count: results.length,
+              });
+              return results;
+            } catch {
+              sendEvent(controller, encoder, "source_done", {
+                index: i,
+                label: job.label,
+                type: job.type,
+                count: 0,
+                failed: true,
+              });
+              return [] as TrendResult[];
+            }
+          })
+        );
+
+        const rawResults = settled.flatMap((r) =>
+          r.status === "fulfilled" ? r.value : []
+        );
 
         sendEvent(controller, encoder, "phase", {
           phase: "fetched",
@@ -279,8 +285,7 @@ export async function POST(request: NextRequest) {
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
+      "Cache-Control": "no-cache, no-transform",
     },
   });
 }

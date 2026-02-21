@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { DM_Sans } from "next/font/google";
+import { Inter, Heebo } from "next/font/google";
 import { ThemeAndLocaleProvider } from "@/components/ThemeAndLocaleProvider";
 import { FullScreenLayoutProvider } from "@/components/FullScreenLayoutContext";
 import { AppLayout } from "@/components/AppLayout";
 
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const heebo = Heebo({ subsets: ["hebrew", "latin"], variable: "--font-hebrew", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Banner Automation Pipeline",
@@ -31,7 +32,7 @@ export default async function RootLayout(props: Readonly<LayoutProps>) {
   }
   await Promise.all([params, searchParams].filter(Boolean));
   return (
-    <html lang="en" dir="ltr" className={dmSans.variable} suppressHydrationWarning>
+    <html lang="en" dir="ltr" className={`${inter.variable} ${heebo.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -46,10 +47,6 @@ export default async function RootLayout(props: Readonly<LayoutProps>) {
 })();
             `.trim(),
           }}
-        />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=Assistant:wght@400;500;600;700&display=swap"
         />
       </head>
       <body className="antialiased">
