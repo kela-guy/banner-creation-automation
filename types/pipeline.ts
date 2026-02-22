@@ -2,6 +2,7 @@ export type RunStatus = "idle" | "running" | "success" | "error";
 
 export type GenerationStyle = "typography" | "infographic";
 
+
 export interface ExtractResult {
   painPoints: string[];
   desires: string[];

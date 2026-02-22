@@ -13,6 +13,8 @@ export interface VaultData {
   brandColors: string[];
   referenceBanners: string[];
   generationStyle: GenerationStyle;
+  useTrends: boolean;
+  useReferenceMode: boolean;
   trendTopics: TrendTopic[];
   trendSources: TrendSource[];
   trendInsights: TrendInsights | null;
@@ -26,6 +28,8 @@ const defaults: VaultData = {
   brandColors: ["", ""],
   referenceBanners: [],
   generationStyle: "typography",
+  useTrends: true,
+  useReferenceMode: false,
   trendTopics: [],
   trendSources: DEFAULT_TREND_SOURCES,
   trendInsights: null,
@@ -54,6 +58,8 @@ export function loadVault(): VaultData {
       brandColors: Array.isArray(parsed.brandColors) ? parsed.brandColors.filter((c): c is string => typeof c === "string") : defaults.brandColors,
       referenceBanners: Array.isArray(parsed.referenceBanners) ? parsed.referenceBanners.filter((s): s is string => typeof s === "string") : defaults.referenceBanners,
       generationStyle: style,
+      useTrends: typeof parsed.useTrends === "boolean" ? parsed.useTrends : defaults.useTrends,
+      useReferenceMode: typeof parsed.useReferenceMode === "boolean" ? parsed.useReferenceMode : defaults.useReferenceMode,
       trendTopics: Array.isArray(parsed.trendTopics) ? parsed.trendTopics as TrendTopic[] : defaults.trendTopics,
       trendSources: Array.isArray(parsed.trendSources) ? mergeTrendSources(parsed.trendSources as TrendSource[]) : defaults.trendSources,
       trendInsights: parsed.trendInsights && typeof parsed.trendInsights === "object" ? parsed.trendInsights as TrendInsights : defaults.trendInsights,

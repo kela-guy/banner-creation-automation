@@ -81,7 +81,7 @@ export const PipelineActivityLog = memo(function PipelineActivityLog({
   return (
     <div
       className={cn(
-        "absolute bottom-4 z-40 w-72",
+        "pointer-events-auto absolute bottom-16 w-72",
         locale === "he" ? "right-4" : "left-4",
         "rounded-xl border border-[var(--border-default)] bg-[var(--surface-panel)]",
         "shadow-lg shadow-black/8 dark:shadow-black/30"

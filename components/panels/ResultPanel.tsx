@@ -7,16 +7,22 @@ import { getAngleHook } from "@/types/trends";
 import { CircleNotch, Question } from "@phosphor-icons/react";
 import { CopyList } from "@/components/panels/CopyList";
 import { GalleryPanel } from "@/components/panels/GalleryPanel";
+import { PanelActionFooter } from "@/components/panels/PanelActionFooter";
 import { Button } from "@/components/ui/Button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
-import { panelT } from "@/lib/translations";
+import { panelT, t } from "@/lib/translations";
 import { cn } from "@/lib/cn";
 import { consumeScoutStream } from "@/lib/consumeScoutStream";
 import { getAvatarTemplate, downloadAvatarTemplate } from "@/lib/avatarTemplate";
 const MIN_PASTE_CHARS = 50;
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.doc,.txt,.md";
+
+const INPUT_BASE =
+  "rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-2.5 text-[var(--foreground)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent";
+const INPUT_SM =
+  "rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-2 text-[var(--foreground)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent";
 
 function HintIcon({ tooltip }: { tooltip: string }) {
   return (
@@ -68,14 +74,16 @@ export interface ResultPanelProps {
   onReferenceBannersChange: (images: string[]) => void;
   generationStyle: GenerationStyle;
   onGenerationStyleChange: (style: GenerationStyle) => void;
+  useTrends: boolean;
+  onUseTrendsChange: (v: boolean) => void;
+  useReferenceMode: boolean;
+  onUseReferenceModeChange: (v: boolean) => void;
   infographicTopicHeadline: string;
   onInfographicTopicHeadlineChange: (value: string) => void;
   runInfographicVariations: () => Promise<void>;
   isRunningInfographic: boolean;
   imageGenerationCount: number;
   onImageGenerationCountChange: (count: number) => void;
-  imageGenerationDelaySeconds: number;
-  onImageGenerationDelaySecondsChange: (seconds: number) => void;
   insights: ExtractResult | null;
   copyVariations: CopyVariation[];
   concepts: BannerConcept[];
@@ -87,6 +95,8 @@ export interface ResultPanelProps {
   onTrendSourcesChange: (sources: TrendSource[]) => void;
   trendInsights: TrendInsights | null;
   onTrendInsightsChange: (insights: TrendInsights | null) => void;
+  onRunPipeline: () => void;
+  isRunning: boolean;
 }
 
 const EMPTY_STATUS: Record<string, RunStatus> = {};
@@ -110,14 +120,16 @@ export function ResultPanel({
   onReferenceBannersChange,
   generationStyle,
   onGenerationStyleChange,
+  useTrends,
+  onUseTrendsChange,
+  useReferenceMode,
+  onUseReferenceModeChange,
   infographicTopicHeadline,
   onInfographicTopicHeadlineChange,
   runInfographicVariations,
   isRunningInfographic,
   imageGenerationCount,
   onImageGenerationCountChange,
-  imageGenerationDelaySeconds,
-  onImageGenerationDelaySecondsChange,
   insights,
   copyVariations,
   concepts,
@@ -129,6 +141,8 @@ export function ResultPanel({
   onTrendSourcesChange,
   trendInsights,
   onTrendInsightsChange,
+  onRunPipeline,
+  isRunning,
 }: ResultPanelProps) {
   const { locale } = useThemeAndLocale();
   const [pastedText, setPastedText] = useState("");
@@ -303,377 +317,226 @@ export function ResultPanel({
   }
 
   if (selectedNodeId === "upload") {
-    const maxBanners = 15;
     const hasDocument = Boolean(documentText.trim());
     const canUsePaste = pastedText.trim().length >= MIN_PASTE_CHARS;
 
-    const inputBase =
-      "rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-2.5 text-[var(--foreground)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent";
-    const inputSm = "rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-2 text-[var(--foreground)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent";
+    const inputBase = INPUT_BASE;
+    const inputSm = INPUT_SM;
 
     return (
       <div className="flex flex-col h-full min-h-0">
-      <div className="flex flex-col gap-[var(--panel-gap)] panel-content-text flex-1 min-h-0 overflow-auto">
-        <Accordion defaultValue={["avatar", "branding", "style", "images"]}>
-          <AccordionItem value="avatar">
-            <AccordionTrigger>
+      <div className="flex flex-col panel-content-text flex-1 min-h-0 overflow-auto px-4 py-3 gap-5">
+
+        {/* ── Group A: Sources ── */}
+        <section className="space-y-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{panelT(locale, "sourcesSection")}</h3>
+
+          {/* Avatar document */}
+          <div className={cn(useReferenceMode && "opacity-50 pointer-events-none")}>
+            <p className="text-sm font-medium text-[var(--foreground)] flex items-center gap-1">
               {panelT(locale, "avatarTitle")}
-              {hasDocument && (
-                <span className="ml-2 rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:text-green-300">✓</span>
-              )}
-            </AccordionTrigger>
-            <AccordionContent>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              {panelT(locale, "avatarIntro")}
+              {useReferenceMode && <span className="text-[11px] text-slate-400 font-normal">({panelT(locale, "optional")})</span>}
+              {!useReferenceMode && hasDocument && <span className="text-green-500 text-xs">✓</span>}
               <HintIcon tooltip={panelT(locale, "avatarHint")} />
             </p>
-
-            {!hasDocument && (
-              <div className="mt-3 flex flex-col gap-3">
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isParsing}
-                  aria-busy={isParsing}
-                  aria-label={panelT(locale, "chooseFile")}
-                >
-                  {isParsing ? panelT(locale, "parsingFile") : panelT(locale, "uploadDocument")}
+            {hasDocument ? (
+              <div className="mt-1.5">
+                <span className="text-xs text-green-600 dark:text-green-400">{panelT(locale, "documentLoaded")} {documentText.length.toLocaleString()} {panelT(locale, "documentLoadedChars")}</span>
+                {documentText.length < 350 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{panelT(locale, "nudgeAvatarShort")}</p>
+                )}
+                <Button type="button" variant="secondary" onClick={handleClearDocument} className="mt-1.5 text-xs h-7 px-2">
+                  {panelT(locale, "changeDocument")}
                 </Button>
+              </div>
+            ) : (
+              <div className="mt-1.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{panelT(locale, "avatarIntro")}</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setPastedText(getAvatarTemplate(locale))}
-                    aria-label={panelT(locale, "startFromTemplate")}
-                  >
+                  <Button type="button" variant="primary" onClick={() => fileInputRef.current?.click()} disabled={isParsing} aria-busy={isParsing} className="text-xs h-7 px-3">
+                    {isParsing ? panelT(locale, "parsingFile") : panelT(locale, "uploadDocument")}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setPastedText(getAvatarTemplate(locale))} className="text-xs h-7 px-2">
                     {panelT(locale, "startFromTemplate")}
                   </Button>
-                  <button
-                    type="button"
-                    onClick={() => downloadAvatarTemplate(locale)}
-                    className="text-sm text-accent underline hover:no-underline"
-                    aria-label={panelT(locale, "downloadTemplate")}
-                  >
-                    {panelT(locale, "downloadTemplate")}
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {hasDocument ? (
-            <>
-              <div className="mt-4 rounded-[var(--panel-radius)] border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200" role="status">
-                <strong>{panelT(locale, "documentLoaded")}</strong> {documentText.length.toLocaleString()} {panelT(locale, "documentLoadedChars")}
-              </div>
-              {documentText.length < 350 && (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
-                  {panelT(locale, "nudgeAvatarShort")}
-                </p>
-              )}
-              <Button type="button" variant="secondary" onClick={handleClearDocument} className="mt-3">
-                {panelT(locale, "changeDocument")}
-              </Button>
-            </>
-          ) : (
-            <>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={cn(
-                  "mt-4 rounded-[var(--panel-radius)] border-2 border-dashed p-4 transition-colors",
-                  isDragOver ? "border-accent bg-accent-muted/20" : "border-[var(--border-default)] bg-[var(--surface-card)]"
-                )}
-              >
-                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                  {panelT(locale, "dropOrPaste")}
-                </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPTED_FILE_TYPES}
-                  onChange={handleFileSelect}
-                  disabled={isParsing}
-                  className="sr-only"
-                  aria-label={panelT(locale, "chooseFile")}
-                />
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">{panelT(locale, "pasteLabel")}</label>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "mt-2 rounded-lg border-2 border-dashed p-3 transition-colors",
+                    isDragOver ? "border-accent bg-accent-muted/20" : "border-[var(--border-default)] bg-[var(--surface-card)]"
+                  )}
+                >
+                  <input ref={fileInputRef} type="file" accept={ACCEPTED_FILE_TYPES} onChange={handleFileSelect} disabled={isParsing} className="sr-only" aria-label={panelT(locale, "chooseFile")} />
                   <textarea
                     value={pastedText}
                     onChange={(e) => setPastedText(e.target.value)}
                     placeholder={panelT(locale, "pastePlaceholder")}
-                    className={cn("w-full", inputBase)}
-                    rows={5}
+                    className={cn("w-full text-xs", inputBase)}
+                    rows={3}
                     aria-label={panelT(locale, "pasteLabel")}
                   />
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handlePasteSubmit}
-                      disabled={!canUsePaste || isParsing}
-                      aria-busy={isParsing}
-                    >
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="secondary" onClick={handlePasteSubmit} disabled={!canUsePaste || isParsing} className="text-xs h-7 px-2">
                       {isParsing ? panelT(locale, "parsingFile") : panelT(locale, "usePastedText")}
                     </Button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isParsing}
-                      className="text-sm text-accent underline hover:no-underline disabled:opacity-50"
-                    >
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isParsing} className="text-xs text-accent underline hover:no-underline disabled:opacity-50">
                       {panelT(locale, "orChooseFile")}
                     </button>
                   </div>
                 </div>
+                {parseError && <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{parseError}</p>}
               </div>
-              {isParsing && (
-                <p className="mt-2 text-sm text-accent font-medium" role="status">
-                  {panelT(locale, "parsingFile")}
-                </p>
-              )}
-              {parseError && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
-                  {parseError}
-                </p>
-              )}
-            </>
-          )}
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="salesPage">
-            <AccordionTrigger>
-              {panelT(locale, "salesPage")}
-              {salesPageText.trim() && (
-                <span className="ml-2 rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:text-green-300">✓</span>
-              )}
-            </AccordionTrigger>
-            <AccordionContent>
-            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] p-4">
-              <input
-                type="url"
-                value={salesPageUrl}
-                onChange={(e) => onSalesPageUrlChange(e.target.value)}
-                placeholder={panelT(locale, "salesPagePlaceholder")}
-                className={cn("w-full", inputSm)}
-                aria-label={panelT(locale, "salesPage")}
-              />
-              {isFetchingSalesPage && (
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" role="status">{panelT(locale, "fetching")}</p>
-              )}
-              {salesPageFetchError && (
-                <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">{salesPageFetchError}</p>
-              )}
-              {!isFetchingSalesPage && salesPageText.trim() && (
-                <p className="mt-2 text-xs text-green-600 dark:text-green-400" role="status">
-                  {panelT(locale, "salesPageLoaded")}
-                </p>
-              )}
-            </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="branding">
-            <AccordionTrigger>
-              {panelT(locale, "brandAndRefs")}
-              <HintIcon tooltip={panelT(locale, "brandHint")} />
-            </AccordionTrigger>
-            <AccordionContent>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "brandLogo")}</label>
-                {brandLogo ? (
-                  <div className="flex items-center gap-2">
-                    <img src={brandLogo} alt={panelT(locale, "brandLogo")} className="h-12 w-12 object-contain rounded border border-[var(--border-default)]" />
-                    <Button type="button" variant="secondary" onClick={() => onBrandLogoChange(null)}>{panelT(locale, "clear")}</Button>
-                  </div>
-                ) : (
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => onBrandLogoChange(reader.result as string);
-                      reader.readAsDataURL(file);
-                      e.target.value = "";
-                    }}
-                    className="block w-full text-sm text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-accent-muted file:px-2 file:py-1.5 file:text-xs file:font-medium file:text-accent dark:text-slate-400"
-                    aria-label={panelT(locale, "brandLogo")}
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "brandColors")}</label>
-                <div className="flex gap-2 flex-wrap">
-                  {[0, 1].map((i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <input
-                        type="color"
-                        value={brandColors[i]?.startsWith("#") || brandColors[i]?.startsWith("oklch") ? brandColors[i] : "oklch(0.62 0.072 259.597)"}
-                        onChange={(e) => {
-                          const next = [...brandColors];
-                          next[i] = e.target.value;
-                          onBrandColorsChange(next);
-                        }}
-                        className="h-8 w-8 rounded border border-[var(--border-default)] cursor-pointer"
-                        aria-label={`${panelT(locale, "brandColor")} ${i + 1}`}
-                      />
-                      <input
-                        type="text"
-                        value={brandColors[i] ?? ""}
-                        onChange={(e) => {
-                          const next = [...brandColors];
-                          next[i] = e.target.value;
-                          onBrandColorsChange(next);
-                        }}
-                        placeholder="#hex"
-                        className="w-20 rounded-[var(--panel-radius)] border border-[var(--border-default)] bg-[var(--surface-panel)] px-2 py-1 text-xs font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "referenceBanners")}</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = e.target.files;
-                    if (!files?.length) return;
-                    Promise.all(
-                      Array.from(files).map(
-                        (file) =>
-                          new Promise<string>((resolve) => {
-                            const reader = new FileReader();
-                            reader.onload = () => resolve(reader.result as string);
-                            reader.readAsDataURL(file);
-                          })
-                      )
-                    ).then((newUrls) => onReferenceBannersChange([...referenceBanners, ...newUrls]));
-                    e.target.value = "";
-                  }}
-                  className="block w-full text-sm text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-accent-muted file:px-2 file:py-1.5 file:text-xs file:font-medium file:text-accent dark:text-slate-400"
-                  aria-label={panelT(locale, "referenceBanners")}
-                />
-                {referenceBanners.length > 0 && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {referenceBanners.slice(0, 4).map((src, i) => (
-                      <img key={i} src={src} alt="" role="presentation" className="h-12 w-12 object-cover rounded border border-[var(--border-default)]" />
-                    ))}
-                    {referenceBanners.length > 4 && <span className="text-xs text-slate-500">+{referenceBanners.length - 4}</span>}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setRefsModalOpen(true)}
-                      aria-label={panelT(locale, "viewAllRefsCount").replace("{{count}}", String(referenceBanners.length))}
-                    >
-                      {panelT(locale, "viewAllRefsCount").replace("{{count}}", String(referenceBanners.length))}
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => onReferenceBannersChange([])}>{panelT(locale, "clearAll")}</Button>
-                  </div>
-                )}
-              </div>
-            </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="style">
-            <AccordionTrigger>
-              {panelT(locale, "generationStyle")}
-              <HintIcon tooltip={panelT(locale, "generationStyleIntro")} />
-            </AccordionTrigger>
-            <AccordionContent>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="generationStyle"
-                  checked={generationStyle === "typography"}
-                  onChange={() => onGenerationStyleChange("typography")}
-                  className="mt-0.5 rounded-full border-[var(--border-default)] text-accent focus:ring-accent"
-                />
-                <span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "minimalTypography")}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "minimalTypographyDesc")}</span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="generationStyle"
-                  checked={generationStyle === "infographic"}
-                  onChange={() => onGenerationStyleChange("infographic")}
-                  disabled={referenceBanners.length === 0}
-                  className="mt-0.5 rounded-full border-[var(--border-default)] text-accent focus:ring-accent disabled:opacity-50"
-                />
-                <span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "infographicFromRefs")}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "infographicFromRefsDesc")}</span>
-                </span>
-              </label>
-            </div>
-            {referenceBanners.length === 0 && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{panelT(locale, "uploadRefsToEnable")}</p>
             )}
-            </AccordionContent>
-          </AccordionItem>
+          </div>
 
-          <AccordionItem value="images">
-            <AccordionTrigger>
-              {panelT(locale, "howManyImages")}
-              <HintIcon tooltip={panelT(locale, "loopHint")} />
-            </AccordionTrigger>
-            <AccordionContent>
-            <div className="flex items-center gap-3 mb-4">
-              <input
-                type="number"
-                min={1}
-                max={maxBanners}
-                value={imageGenerationCount}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  if (!Number.isNaN(n)) {
-                    onImageGenerationCountChange(Math.min(maxBanners, Math.max(1, n)));
-                  }
-                }}
-                className="w-20 rounded-lg border border-[var(--border-default)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-accent"
-                aria-label={panelT(locale, "numberImagesAria")}
-              />
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                {panelT(locale, "ofLoop")}
-              </span>
+          {/* Sales page */}
+          <div className={cn(useReferenceMode && "opacity-50 pointer-events-none")}>
+            <p className="text-sm font-medium text-[var(--foreground)] flex items-center gap-1">
+              {panelT(locale, "salesPage")}
+              {useReferenceMode && <span className="text-[11px] text-slate-400 font-normal">({panelT(locale, "optional")})</span>}
+              {!useReferenceMode && salesPageText.trim() && <span className="text-green-500 text-xs">✓</span>}
+            </p>
+            <input
+              type="url"
+              value={salesPageUrl}
+              onChange={(e) => onSalesPageUrlChange(e.target.value)}
+              placeholder={panelT(locale, "salesPagePlaceholder")}
+              className={cn("w-full mt-1.5", inputSm)}
+              aria-label={panelT(locale, "salesPage")}
+            />
+            {isFetchingSalesPage && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" role="status">{panelT(locale, "fetching")}</p>}
+            {salesPageFetchError && <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{salesPageFetchError}</p>}
+            {!isFetchingSalesPage && salesPageText.trim() && <p className="mt-1 text-xs text-green-600 dark:text-green-400" role="status">{panelT(locale, "salesPageLoaded")}</p>}
+          </div>
+
+          {/* Brand kit */}
+          <div className="space-y-2.5">
+            <p className="text-sm font-medium text-[var(--foreground)] flex items-center gap-1">
+              {panelT(locale, "brandKit")}
+              {(brandLogo || brandColors.some(c => c && !c.startsWith("oklch")) || referenceBanners.length > 0) && <span className="text-green-500 text-xs">✓</span>}
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "brandLogo")}</label>
+              {brandLogo ? (
+                <div className="flex items-center gap-2">
+                  <img src={brandLogo} alt={panelT(locale, "brandLogo")} className="h-10 w-10 object-contain rounded border border-[var(--border-default)]" />
+                  <Button type="button" variant="secondary" onClick={() => onBrandLogoChange(null)} className="text-xs h-7 px-2">{panelT(locale, "clear")}</Button>
+                </div>
+              ) : (
+                <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => onBrandLogoChange(reader.result as string); reader.readAsDataURL(file); e.target.value = ""; }} className="block w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-accent-muted file:px-2 file:py-1 file:text-xs file:font-medium file:text-accent dark:text-slate-400" aria-label={panelT(locale, "brandLogo")} />
+              )}
             </div>
             <div>
-              <label className="flex items-center gap-1 text-xs font-medium text-[var(--foreground)] mb-1">
-                {panelT(locale, "pauseBetween")}
-                <HintIcon tooltip={panelT(locale, "pauseHint")} />
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={120}
-                value={imageGenerationDelaySeconds}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  if (!Number.isNaN(n)) {
-                    onImageGenerationDelaySecondsChange(Math.min(120, Math.max(0, n)));
-                  }
-                }}
-                className="w-20 rounded-lg border border-[var(--border-default)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-accent"
-                aria-label={panelT(locale, "pauseAria")}
-              />
+              <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "brandColors")}</label>
+              <div className="flex gap-2 flex-wrap">
+                {[0, 1].map((i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <input type="color" value={brandColors[i]?.startsWith("#") || brandColors[i]?.startsWith("oklch") ? brandColors[i] : "oklch(0.62 0.072 259.597)"} onChange={(e) => { const next = [...brandColors]; next[i] = e.target.value; onBrandColorsChange(next); }} className="h-7 w-7 rounded border border-[var(--border-default)] cursor-pointer" aria-label={`${panelT(locale, "brandColor")} ${i + 1}`} />
+                    <input type="text" value={brandColors[i] ?? ""} onChange={(e) => { const next = [...brandColors]; next[i] = e.target.value; onBrandColorsChange(next); }} placeholder="#hex" className="w-20 rounded-lg border border-[var(--border-default)] bg-[var(--surface-panel)] px-2 py-1 text-xs font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                ))}
+              </div>
             </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+            <div>
+              <label className="block text-xs font-medium text-[var(--foreground)] mb-1">{panelT(locale, "referenceBanners")}</label>
+              <input type="file" accept="image/*" multiple onChange={(e) => { const files = e.target.files; if (!files?.length) return; Promise.all(Array.from(files).map((file) => new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as string); reader.readAsDataURL(file); }))).then((newUrls) => onReferenceBannersChange([...referenceBanners, ...newUrls])); e.target.value = ""; }} className="block w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-accent-muted file:px-2 file:py-1 file:text-xs file:font-medium file:text-accent dark:text-slate-400" aria-label={panelT(locale, "referenceBanners")} />
+              {referenceBanners.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                  {referenceBanners.slice(0, 4).map((src, i) => (
+                    <img key={i} src={src} alt="" role="presentation" className="h-10 w-10 object-cover rounded border border-[var(--border-default)]" />
+                  ))}
+                  {referenceBanners.length > 4 && <span className="text-xs text-slate-500">+{referenceBanners.length - 4}</span>}
+                  <Button type="button" variant="secondary" onClick={() => setRefsModalOpen(true)} className="text-xs h-7 px-2">
+                    {panelT(locale, "viewAllRefsCount").replace("{{count}}", String(referenceBanners.length))}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => onReferenceBannersChange([])} className="text-xs h-7 px-2">{panelT(locale, "clearAll")}</Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Divider ── */}
+        <hr className="border-[var(--border-default)]" />
+
+        {/* ── Group B: Output ── */}
+        <section className="space-y-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{panelT(locale, "outputSection")}</h3>
+
+          {/* Banner style segmented control */}
+          <div>
+            <p className="text-sm font-medium text-[var(--foreground)] mb-1.5">{panelT(locale, "generationStyle")}</p>
+            <div className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] p-0.5">
+              <button
+                type="button"
+                onClick={() => onGenerationStyleChange("typography")}
+                className={cn("rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  generationStyle === "typography" ? "bg-accent text-accent-foreground shadow-sm" : "text-[var(--foreground)] hover:bg-[var(--surface-panel)]"
+                )}
+              >
+                {panelT(locale, "minimalTypography")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onGenerationStyleChange("infographic")}
+                disabled={referenceBanners.length === 0}
+                title={referenceBanners.length === 0 ? panelT(locale, "uploadRefsToEnable") : panelT(locale, "infographicFromRefsDesc")}
+                className={cn("rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  generationStyle === "infographic" ? "bg-accent text-accent-foreground shadow-sm" : "text-[var(--foreground)] hover:bg-[var(--surface-panel)] disabled:opacity-40 disabled:cursor-not-allowed"
+                )}
+              >
+                {panelT(locale, "infographicFromRefs")}
+              </button>
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "useTrendsLabel")}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={useTrends}
+                onClick={() => onUseTrendsChange(!useTrends)}
+                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
+                  useTrends ? "bg-accent" : "bg-slate-300 dark:bg-slate-600"
+                )}
+              >
+                <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform mt-0.5",
+                  useTrends ? "translate-x-[18px]" : "translate-x-0.5"
+                )} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[var(--foreground)]">{panelT(locale, "useReferenceModeLabel")}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={useReferenceMode}
+                onClick={() => onUseReferenceModeChange(!useReferenceMode)}
+                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
+                  useReferenceMode ? "bg-accent" : "bg-slate-300 dark:bg-slate-600"
+                )}
+              >
+                <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform mt-0.5",
+                  useReferenceMode ? "translate-x-[18px]" : "translate-x-0.5"
+                )} />
+              </button>
+            </div>
+          </div>
+        </section>
+
       </div>
+      <PanelActionFooter
+        imageGenerationCount={imageGenerationCount}
+        onImageGenerationCountChange={onImageGenerationCountChange}
+        onRunPipeline={onRunPipeline}
+        isRunning={isRunning}
+      />
       {refsModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"

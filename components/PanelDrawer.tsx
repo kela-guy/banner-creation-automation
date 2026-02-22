@@ -32,7 +32,7 @@ export function PanelDrawer({ open, onOpenChange, children }: PanelDrawerProps) 
         >
           <Backdrop
             className={cn(
-            "[--backdrop-opacity:0.4] dark:[--backdrop-opacity:0.7] fixed inset-0 z-40 min-h-dvh bg-black",
+            "[--backdrop-opacity:0.4] dark:[--backdrop-opacity:0.7] fixed inset-0 z-40 bg-black",
               "opacity-[calc(var(--backdrop-opacity)*(1-var(--drawer-swipe-progress)))]",
               "transition-opacity duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
               "data-[swiping]:duration-0",

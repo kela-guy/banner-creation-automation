@@ -16,9 +16,9 @@ const Onboarding = dynamic(
   { ssr: false }
 );
 import { useFullScreenLayout } from "@/components/FullScreenLayoutContext";
-import { Button } from "@/components/ui/Button";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
-import { t } from "@/lib/translations";
+import { t, translations } from "@/lib/translations";
+import { cn } from "@/lib/cn";
 import { loadVault, saveVault } from "@/lib/vault";
 
 
@@ -124,6 +124,8 @@ function Home() {
   const [brandColors, setBrandColors] = useState<string[]>(["", ""]);
   const [referenceBanners, setReferenceBanners] = useState<string[]>([]);
   const [generationStyle, setGenerationStyle] = useState<GenerationStyle>("typography");
+  const [useTrends, setUseTrends] = useState(true);
+  const [useReferenceMode, setUseReferenceMode] = useState(false);
   const [infographicTopicHeadline, setInfographicTopicHeadline] = useState("");
   const [trendTopics, setTrendTopics] = useState<TrendTopic[]>([]);
   const [trendSources, setTrendSources] = useState<TrendSource[]>(DEFAULT_TREND_SOURCES);
@@ -156,6 +158,8 @@ function Home() {
     setBrandColors(v.brandColors.length ? v.brandColors : ["", ""]);
     setReferenceBanners(v.referenceBanners);
     setGenerationStyle(v.generationStyle ?? "typography");
+    setUseTrends(v.useTrends ?? true);
+    setUseReferenceMode(v.useReferenceMode ?? false);
     setTrendTopics(v.trendTopics ?? []);
     setTrendSources(v.trendSources ?? DEFAULT_TREND_SOURCES);
     setTrendInsights(v.trendInsights ?? null);
@@ -179,16 +183,17 @@ function Home() {
         brandColors,
         referenceBanners,
         generationStyle,
+        useTrends,
+        useReferenceMode,
         trendTopics,
         trendSources,
         trendInsights,
       });
     }, 500);
     return () => clearTimeout(id);
-  }, [documentText, salesPageUrl, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, trendTopics, trendSources, trendInsights]);
+  }, [documentText, salesPageUrl, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, useTrends, useReferenceMode, trendTopics, trendSources, trendInsights]);
 
   const [imageGenerationCount, setImageGenerationCount] = useState(1);
-  const [imageGenerationDelaySeconds, setImageGenerationDelaySeconds] = useState(3);
   const [insights, setInsights] = useState<ExtractResult | null>(null);
   const [copyVariations, setCopyVariations] = useState<CopyVariation[]>([]);
   const [concepts, setConcepts] = useState<BannerConcept[]>([]);
@@ -207,6 +212,12 @@ function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 8000);
+    return () => clearTimeout(timer);
+  }, [error]);
+
   const setNode = useCallback((id: string, status: "idle" | "running" | "success" | "error", summary?: string) => {
     setNodeStatus((s) => ({ ...s, [id]: status }));
     if (summary !== undefined) {
@@ -222,18 +233,164 @@ function Home() {
     return d;
   }, [nodeStatus, nodeSummaries]);
 
+  const [isRunningInfographic, setIsRunningInfographic] = useState(false);
+  const runInfographicVariations = useCallback(async () => {
+    setError(null);
+    if (referenceBanners.length === 0) {
+      setError("Upload at least one reference image for infographic variations.");
+      return;
+    }
+    setCurrentRunBanners([]);
+    setIsRunningInfographic(true);
+    setIsRunning(true);
+    setNodeStatus({});
+    setNodeSummaries({});
+    setNode("generate", "running", "Analyzing references…");
+    try {
+      const count = Math.min(Math.max(1, imageGenerationCount), MAX_BANNERS_PER_RUN);
+      const delayMs = 10_000;
+      const refsCapped = referenceBanners.slice(0, MAX_REFERENCE_IMAGES_FOR_GENERATE);
+      let descriptionFromRef: string | undefined;
+      setNode("concepts", "running", "Describing reference style…");
+      try {
+        const describeRes = await fetchWith429Retry("/api/describe-reference", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            referenceImages: refsCapped,
+            imageCount: count,
+          }),
+        });
+        if (describeRes.ok) {
+          const desc = (await describeRes.json()) as {
+            styleSummary?: string;
+            structureSummary?: string;
+            suggestedVariationTopics?: string[];
+          };
+          const parts: string[] = [];
+          if (desc.styleSummary) parts.push(desc.styleSummary);
+          if (desc.structureSummary) parts.push(desc.structureSummary);
+          if (parts.length) descriptionFromRef = parts.join(" ");
+          setNode("concepts", "success", "Reference analyzed");
+        } else {
+          setNode("concepts", "success", "Skipped (will generate without analysis)");
+        }
+      } catch {
+        setNode("concepts", "success", "Skipped (will generate without analysis)");
+      }
+      const generated: GeneratedBanner[] = [];
+      const topicOrHeadline = infographicTopicHeadline.trim() || undefined;
+      setNode("generate", "running", `Generating ${count} banner${count > 1 ? "s" : ""}…`);
+      for (let i = 0; i < count; i++) {
+        const headline = topicOrHeadline;
+        const res = await fetchWith429Retry(
+          "/api/generate-image",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              style: "infographic",
+              referenceImages: refsCapped,
+              topic: topicOrHeadline,
+              headline,
+              brandColors: brandColors.filter((c) => c.trim()),
+              descriptionFromRef,
+            }),
+          },
+          () => {}
+        );
+        const text = await res.text();
+        if (!res.ok) {
+          if (res.status === 413) {
+            throw new Error("Request too large. Use fewer or smaller reference images.");
+          }
+          let errMsg: string;
+          try {
+            const body = JSON.parse(text) as { error?: string };
+            errMsg = body?.error ?? res.statusText;
+          } catch {
+            errMsg = res.status >= 500 ? "Image generation failed (server error)." : res.statusText;
+          }
+          throw new Error(errMsg);
+        }
+        const imgJson = JSON.parse(text) as { image: string };
+        let imageBase64 = imgJson.image;
+        const hasLogo2 = Boolean(brandLogo);
+        if (brandLogo) {
+          try {
+            const { compositeLogoOntoBanner } = await import("@/lib/compositeLogo");
+            imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
+          } catch {
+            imageBase64 = imgJson.image;
+          }
+        }
+        const infraReasoning: string[] = ["Style: Infographic from references"];
+        const infraTags: BannerTag[] = [{ label: "infographic", type: "style" }];
+        if (topicOrHeadline) {
+          infraReasoning.push(`Topic: ${topicOrHeadline.slice(0, 60)}`);
+          infraTags.push({ label: topicOrHeadline.slice(0, 40), type: "meta" });
+        }
+        if (descriptionFromRef) infraReasoning.push(`Ref analysis: ${descriptionFromRef.slice(0, 80)}…`);
+        infraReasoning.push(`${refsCapped.length} reference image(s)`);
+        if (brandColors.some((c) => c.trim())) infraReasoning.push(`Brand colors: ${brandColors.filter((c) => c.trim()).join(", ")}`);
+        if (hasLogo2) infraReasoning.push("Logo composited");
+
+        generated.push({
+          id: `infographic-${i}-${Date.now()}`,
+          imageBase64,
+          conceptIndex: i,
+          copySnippet: topicOrHeadline,
+          reasoning: infraReasoning,
+          tags: infraTags,
+          createdAt: Date.now(),
+        });
+        setNode("generate", "running", `Generated ${i + 1}/${count} banner${count > 1 ? "s" : ""}…`);
+        if (i < count - 1 && delayMs > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+      }
+      setNode("generate", "success", `${generated.length} banner${generated.length > 1 ? "s" : ""} created`);
+      setNode("gallery", "success");
+      const library = addToLibrary(generated);
+      startTransition(() => {
+        setCurrentRunBanners(generated);
+        setBanners(library);
+        setSelectedNodeId("gallery");
+        setDrawerOpen(true);
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Infographic variations failed");
+      setNode("generate", "error", e instanceof Error ? e.message : "Failed");
+    } finally {
+      setIsRunningInfographic(false);
+      setIsRunning(false);
+    }
+  }, [referenceBanners, imageGenerationCount, infographicTopicHeadline, brandLogo, brandColors, setNode]);
+
   const runPipeline = useCallback(async () => {
     setError(null);
+
+    if (useReferenceMode) {
+      if (referenceBanners.length === 0) {
+        setError("Upload reference banners first.");
+        return;
+      }
+      runInfographicVariations();
+      return;
+    }
+
     if (!documentText.trim()) {
       setError("Upload or paste an Avatar document first.");
       return;
     }
     setCurrentRunBanners([]);
     setIsRunning(true);
+    setNodeStatus({});
+    setNodeSummaries({});
     try {
-      // ── Trends step: auto-extract topics if needed, then scout ──
+      // ── Trends step: skip in "text" mode, run in "trends" / "combined" ──
       let currentTrendInsights = trendInsights;
-      if (trendTopics.length > 0 && trendSources.some((s) => s.enabled)) {
+      if (useTrends && trendTopics.length > 0 && trendSources.some((s) => s.enabled)) {
         setNode("trends", "running", "Scouting trends…");
         try {
           let topicsToScout = trendTopics;
@@ -373,9 +530,7 @@ function Home() {
         throw new Error("No concepts to generate from.");
       }
 
-      const minDelaySeconds = count > 1 ? 10 : 0;
-      const delaySeconds = Math.max(minDelaySeconds, Math.max(0, imageGenerationDelaySeconds));
-      const delayMs = delaySeconds * 1000;
+      const delayMs = count > 1 ? 10_000 : 0;
       const generated: GeneratedBanner[] = [];
 
       const referenceImagesForRequest =
@@ -493,127 +648,7 @@ function Home() {
     } finally {
       setIsRunning(false);
     }
-  }, [documentText, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, imageGenerationCount, imageGenerationDelaySeconds, setNode, trendTopics, trendSources, trendInsights, locale]);
-
-  const [isRunningInfographic, setIsRunningInfographic] = useState(false);
-  const runInfographicVariations = useCallback(async () => {
-    setError(null);
-    if (referenceBanners.length === 0) {
-      setError("Upload at least one reference image for infographic variations.");
-      return;
-    }
-    setCurrentRunBanners([]);
-    setIsRunningInfographic(true);
-    try {
-      const count = Math.min(Math.max(1, imageGenerationCount), MAX_BANNERS_PER_RUN);
-      const delayMs = Math.max(10, imageGenerationDelaySeconds) * 1000;
-      const refsCapped = referenceBanners.slice(0, MAX_REFERENCE_IMAGES_FOR_GENERATE);
-      let descriptionFromRef: string | undefined;
-      try {
-        const describeRes = await fetchWith429Retry("/api/describe-reference", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            referenceImages: refsCapped,
-            imageCount: count,
-          }),
-        });
-        if (describeRes.ok) {
-          const desc = (await describeRes.json()) as {
-            styleSummary?: string;
-            structureSummary?: string;
-            suggestedVariationTopics?: string[];
-          };
-          const parts: string[] = [];
-          if (desc.styleSummary) parts.push(desc.styleSummary);
-          if (desc.structureSummary) parts.push(desc.structureSummary);
-          if (parts.length) descriptionFromRef = parts.join(" ");
-        }
-      } catch {
-        // optional step; continue without description
-      }
-      const generated: GeneratedBanner[] = [];
-      const topicOrHeadline = infographicTopicHeadline.trim() || undefined;
-      for (let i = 0; i < count; i++) {
-        const headline = topicOrHeadline;
-        const res = await fetchWith429Retry(
-          "/api/generate-image",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              style: "infographic",
-              referenceImages: refsCapped,
-              topic: topicOrHeadline,
-              headline,
-              brandColors: brandColors.filter((c) => c.trim()),
-              descriptionFromRef,
-            }),
-          },
-          () => {}
-        );
-        const text = await res.text();
-        if (!res.ok) {
-          if (res.status === 413) {
-            throw new Error("Request too large. Use fewer or smaller reference images.");
-          }
-          let errMsg: string;
-          try {
-            const body = JSON.parse(text) as { error?: string };
-            errMsg = body?.error ?? res.statusText;
-          } catch {
-            errMsg = res.status >= 500 ? "Image generation failed (server error)." : res.statusText;
-          }
-          throw new Error(errMsg);
-        }
-        const imgJson = JSON.parse(text) as { image: string };
-        let imageBase64 = imgJson.image;
-        const hasLogo2 = Boolean(brandLogo);
-        if (brandLogo) {
-          try {
-            const { compositeLogoOntoBanner } = await import("@/lib/compositeLogo");
-            imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
-          } catch {
-            imageBase64 = imgJson.image;
-          }
-        }
-        const infraReasoning: string[] = ["Style: Infographic from references"];
-        const infraTags: BannerTag[] = [{ label: "infographic", type: "style" }];
-        if (topicOrHeadline) {
-          infraReasoning.push(`Topic: ${topicOrHeadline.slice(0, 60)}`);
-          infraTags.push({ label: topicOrHeadline.slice(0, 40), type: "meta" });
-        }
-        if (descriptionFromRef) infraReasoning.push(`Ref analysis: ${descriptionFromRef.slice(0, 80)}…`);
-        infraReasoning.push(`${refsCapped.length} reference image(s)`);
-        if (brandColors.some((c) => c.trim())) infraReasoning.push(`Brand colors: ${brandColors.filter((c) => c.trim()).join(", ")}`);
-        if (hasLogo2) infraReasoning.push("Logo composited");
-
-        generated.push({
-          id: `infographic-${i}-${Date.now()}`,
-          imageBase64,
-          conceptIndex: i,
-          copySnippet: topicOrHeadline,
-          reasoning: infraReasoning,
-          tags: infraTags,
-          createdAt: Date.now(),
-        });
-        if (i < count - 1 && delayMs > 0) {
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
-      }
-      const library = addToLibrary(generated);
-      startTransition(() => {
-        setCurrentRunBanners(generated);
-        setBanners(library);
-        setSelectedNodeId("gallery");
-        setDrawerOpen(true);
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Infographic variations failed");
-    } finally {
-      setIsRunningInfographic(false);
-    }
-  }, [referenceBanners, imageGenerationCount, imageGenerationDelaySeconds, infographicTopicHeadline, brandLogo, brandColors]);
+  }, [documentText, salesPageText, brandLogo, brandColors, referenceBanners, generationStyle, useTrends, useReferenceMode, imageGenerationCount, setNode, trendTopics, trendSources, trendInsights, locale, runInfographicVariations]);
 
   // Auto-extract trend topics then auto-scout when a document is loaded
   const autoExtractedForDocRef = useRef("");
@@ -691,7 +726,6 @@ function Home() {
     setDrawerOpen(true);
   }, []);
 
-  const handleOpenDrawer = useCallback(() => setDrawerOpen(true), []);
   const handleOnboardingComplete = useCallback(() => setSetupComplete(true), []);
 
   if (setupComplete === null) {
@@ -707,47 +741,7 @@ function Home() {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-[var(--background)]">
-      <header className="flex shrink-0 items-center justify-between bg-[var(--surface-panel)] shadow-sm px-5 py-3.5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-            <svg className="h-4 w-4 text-accent-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M3 9h18" />
-              <path d="M9 21V9" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-base font-semibold tracking-tight text-[var(--foreground)]">
-              {t(locale, "appTitle")}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {t(locale, "appSubtitle")}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" role="alert">
-              {error}
-            </div>
-          )}
-          {!drawerOpen && (
-            <Button type="button" variant="secondary" onClick={handleOpenDrawer}>
-              {t(locale, "openPanel")}
-            </Button>
-          )}
-          <Button
-            type="button"
-            onClick={runPipeline}
-            disabled={isRunning}
-            aria-label={t(locale, "runPipeline")}
-            aria-busy={isRunning}
-          >
-            {isRunning ? t(locale, "running") : t(locale, "runPipeline")}
-          </Button>
-        </div>
-      </header>
+    <div className="flex h-dvh bg-[var(--background)]">
       <div className="flex flex-1 min-h-0">
         <main className="relative flex-1 min-w-0 bg-[var(--surface-canvas)]">
           <PipelineCanvas
@@ -755,14 +749,61 @@ function Home() {
             selectedNodeId={selectedNodeId}
             nodeData={nodeData}
           />
-          {!drawerOpen && (
+          {/* Overlay for FAB + toast + activity log — pointer-events-none so ReactFlow stays interactive */}
+          <div className="absolute inset-0 z-50 pointer-events-none">
+            {/* Error toast — top center */}
+            {error && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2">
+                <div
+                  role="alert"
+                  onClick={() => setError(null)}
+                  className="pointer-events-auto max-w-md cursor-pointer rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 shadow-lg dark:border-red-800 dark:bg-red-950/90 dark:text-red-300 animate-in fade-in slide-in-from-top-2 duration-300"
+                >
+                  {error}
+                </div>
+              </div>
+            )}
+            {/* Activity log — bottom left/right depending on locale */}
             <PipelineActivityLog
               nodeStatus={nodeStatus}
               nodeSummaries={nodeSummaries}
               isRunning={isRunning}
               onStepClick={handleNodeSelect}
             />
-          )}
+            {/* FAB — bottom center */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+              <button
+                type="button"
+                onClick={runPipeline}
+                disabled={isRunning || (useReferenceMode ? referenceBanners.length === 0 : !documentText.trim())}
+                aria-label={translations[locale].createBanners(imageGenerationCount)}
+                aria-busy={isRunning}
+                className={cn(
+                  "pointer-events-auto",
+                  "flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-lg transition-all",
+                  "bg-accent text-accent-foreground hover:brightness-110 active:scale-95",
+                  "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                )}
+              >
+                {isRunning ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    {t(locale, "running")}
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                    {translations[locale].createBanners(imageGenerationCount)}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </main>
         <PanelDrawer open={drawerOpen} onOpenChange={setDrawerOpen}>
           <ResultPanel
@@ -783,14 +824,16 @@ function Home() {
             onReferenceBannersChange={setReferenceBanners}
             generationStyle={generationStyle}
             onGenerationStyleChange={setGenerationStyle}
+            useTrends={useTrends}
+            onUseTrendsChange={setUseTrends}
+            useReferenceMode={useReferenceMode}
+            onUseReferenceModeChange={setUseReferenceMode}
             infographicTopicHeadline={infographicTopicHeadline}
             onInfographicTopicHeadlineChange={setInfographicTopicHeadline}
             runInfographicVariations={runInfographicVariations}
             isRunningInfographic={isRunningInfographic}
             imageGenerationCount={imageGenerationCount}
             onImageGenerationCountChange={setImageGenerationCount}
-            imageGenerationDelaySeconds={imageGenerationDelaySeconds}
-            onImageGenerationDelaySecondsChange={setImageGenerationDelaySeconds}
             insights={insights}
             copyVariations={copyVariations}
             concepts={concepts}
@@ -802,6 +845,8 @@ function Home() {
             onTrendSourcesChange={setTrendSources}
             trendInsights={trendInsights}
             onTrendInsightsChange={setTrendInsights}
+            onRunPipeline={runPipeline}
+            isRunning={isRunning}
           />
         </PanelDrawer>
       </div>

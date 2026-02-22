@@ -16,9 +16,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function fetchGoogleTrends(topics: string[]): Promise<TrendResult[]> {
-  // #region agent log
-  const _dl = (loc: string, msg: string, data: Record<string, unknown> = {}) => fetch('http://127.0.0.1:7775/ingest/578820cd-8cd2-4c01-9519-5301d6fbcc13',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7221af'},body:JSON.stringify({sessionId:'7221af',location:loc,message:msg,data,timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
   const results: TrendResult[] = [];
   const capped = topics.slice(0, MAX_TOPICS);
 
@@ -57,10 +54,8 @@ export async function fetchGoogleTrends(topics: string[]): Promise<TrendResult[]
           }
         }
       }
-    } catch (e) {
-      // #region agent log
-      _dl('googleTrends.ts:fail',`Topic "${topic}" failed`,{error:e instanceof Error ? e.message : String(e)});
-      // #endregion
+    } catch {
+      // Individual topic failure (timeout or blocked) — continue with others
     }
   }
 

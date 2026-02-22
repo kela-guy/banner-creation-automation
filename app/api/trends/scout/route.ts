@@ -102,20 +102,11 @@ function sendEvent(
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
-  // #region agent log
-  const _dl = (location: string, message: string, data: Record<string, unknown> = {}, hypothesisId = 'H0') => fetch('http://127.0.0.1:7775/ingest/578820cd-8cd2-4c01-9519-5301d6fbcc13',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7221af'},body:JSON.stringify({sessionId:'7221af',location,message,data,timestamp:Date.now(),hypothesisId})}).catch(()=>{});
-  // #endregion
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // #region agent log
-        _dl('route.ts:POST','Scout request received',{url:request.url},'H4');
-        // #endregion
         const setup = await getSetup();
-        // #region agent log
-        _dl('route.ts:setup','Setup result',{hasSetup:!!setup,provider:setup?.provider,hasKey:!!setup?.apiKey,keyLen:setup?.apiKey?.length},'H3');
-        // #endregion
         if (!setup?.apiKey || setup.provider !== "google") {
           const setupMsg =
             process.env.VERCEL === "1"
@@ -171,9 +162,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // #region agent log
-        _dl('route.ts:jobs','Jobs created',{count:jobs.length,types:jobs.map(j=>j.type),topicCount:topics.length,topics},'H1');
-        // #endregion
         sendEvent(controller, encoder, "phase", { phase: "fetching", totalSources: jobs.length });
 
         jobs.forEach((job, i) => {
@@ -186,15 +174,8 @@ export async function POST(request: NextRequest) {
 
         const settled = await Promise.allSettled(
           jobs.map(async (job, i) => {
-            // #region agent log
-            const _t0 = Date.now();
-            _dl('route.ts:source-start',`Fetching ${job.type}`,{index:i,type:job.type},'H1');
-            // #endregion
             try {
               const results = await job.fetcher();
-              // #region agent log
-              _dl('route.ts:source-ok',`Source ${job.type} succeeded`,{index:i,type:job.type,count:results.length,elapsedMs:Date.now()-_t0},'H1');
-              // #endregion
               sendEvent(controller, encoder, "source_done", {
                 index: i,
                 label: job.label,
@@ -202,10 +183,7 @@ export async function POST(request: NextRequest) {
                 count: results.length,
               });
               return results;
-            } catch (srcErr) {
-              // #region agent log
-              _dl('route.ts:source-fail',`Source ${job.type} FAILED`,{index:i,type:job.type,error:srcErr instanceof Error ? srcErr.message : String(srcErr),stack:srcErr instanceof Error ? srcErr.stack?.slice(0,500) : '',elapsedMs:Date.now()-_t0},'H1');
-              // #endregion
+            } catch {
               sendEvent(controller, encoder, "source_done", {
                 index: i,
                 label: job.label,
@@ -222,9 +200,6 @@ export async function POST(request: NextRequest) {
           r.status === "fulfilled" ? r.value : []
         );
 
-        // #region agent log
-        _dl('route.ts:fetched','All sources done',{totalResults:rawResults.length,breakdown:settled.map((s,i)=>({type:jobs[i]?.type,status:s.status,count:s.status==='fulfilled'?s.value.length:0}))},'H1');
-        // #endregion
         sendEvent(controller, encoder, "phase", {
           phase: "fetched",
           totalResults: rawResults.length,
@@ -245,10 +220,6 @@ export async function POST(request: NextRequest) {
 
         sendEvent(controller, encoder, "phase", { phase: "analyzing" });
 
-        // #region agent log
-        const _aiT0 = Date.now();
-        _dl('route.ts:ai-start','Starting AI analysis',{resultCount:rawResults.length,model:TEXT_MODEL},'H3');
-        // #endregion
         const keepaliveInterval = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(": keepalive\n\n"));
@@ -271,9 +242,6 @@ export async function POST(request: NextRequest) {
         }
 
         const output = response.text ?? "";
-        // #region agent log
-        _dl('route.ts:ai-done','AI analysis complete',{elapsedMs:Date.now()-_aiT0,outputLen:output.length,outputPreview:output.slice(0,200)},'H3');
-        // #endregion
         let summary = "";
         let trendingAngles: TrendAngle[] = [];
 
@@ -318,16 +286,10 @@ export async function POST(request: NextRequest) {
           scoutedAt: new Date().toISOString(),
         };
 
-        // #region agent log
-        _dl('route.ts:done','Scout complete — sending done event',{anglesCount:trendingAngles.length,summaryLen:summary.length,totalResults:rawResults.length},'H4');
-        // #endregion
         sendEvent(controller, encoder, "done", { insights });
         controller.close();
       } catch (err) {
         console.error("Scout error:", err);
-        // #region agent log
-        _dl('route.ts:top-error','TOP-LEVEL scout error',{error:err instanceof Error ? err.message : String(err),stack:err instanceof Error ? err.stack?.slice(0,500) : ''},'H5');
-        // #endregion
         const errObj = err as { message?: string; error?: { code?: number; message?: string } };
         const message = errObj?.error?.message ?? (err instanceof Error ? err.message : "Trend scouting failed");
         sendEvent(controller, encoder, "error", { error: message });

@@ -36,9 +36,15 @@ export function AppSidebar() {
 
   return (
     <aside
-      className="flex w-14 shrink-0 flex-col gap-4 border-e-0 border-e-transparent [border-inline-end-style:none] [border-image:none] bg-[var(--surface-panel)] pt-16 shadow-[2px_0px_4px_0px_rgba(87,117,167,0.05),0px_0px_4px_0px_rgba(0,0,0,0.15)] rtl:border-e-0 rtl:border-s rtl:border-[var(--border-default)]"
+      className="flex w-14 shrink-0 flex-col gap-4 border-e-0 border-e-transparent [border-inline-end-style:none] [border-image:none] bg-[var(--surface-panel)] pt-4 shadow-[2px_0px_4px_0px_rgba(87,117,167,0.05),0px_0px_4px_0px_rgba(0,0,0,0.15)] rtl:border-e-0 rtl:border-s rtl:border-[var(--border-default)]"
       aria-label="App navigation"
     >
+      <div className="flex justify-center px-2">
+        <svg width="28" height="23" viewBox="0 0 35 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden className="text-[var(--foreground)]">
+          <path d="M22.2968 0L10.3364 28.8023H4.14496L8.17128 19.2696L0 0H6.39169L11.2485 12.5112L16.0237 0H22.2968Z" fill="currentColor"/>
+          <path d="M34.5733 0L22.613 28.8023H16.4141L28.2928 0H34.5733Z" fill="currentColor"/>
+        </svg>
+      </div>
       <nav className="flex flex-1 flex-col items-center justify-start gap-4 p-2" aria-label="Pages">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive =
