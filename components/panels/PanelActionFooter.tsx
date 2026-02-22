@@ -46,7 +46,7 @@ export const PanelActionFooter = React.memo(function PanelActionFooter({
         aria-busy={isRunning}
         className="shrink-0"
       >
-        {isRunning ? t(locale, "running") : t(locale, "runPipeline")}
+        {isRunning ? t(locale, "running") : t(locale, "createBanners")(imageGenerationCount)}
       </Button>
     </div>
   );

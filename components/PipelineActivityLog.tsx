@@ -83,7 +83,7 @@ export const PipelineActivityLog = memo(function PipelineActivityLog({
       className={cn(
         "pointer-events-auto absolute bottom-16 w-72",
         locale === "he" ? "right-4" : "left-4",
-        "rounded-xl border border-[var(--border-default)] bg-[var(--surface-panel)]",
+        "rounded-xl border-0 bg-[var(--surface-panel)]",
         "shadow-lg shadow-black/8 dark:shadow-black/30"
       )}
     >
@@ -92,20 +92,12 @@ export const PipelineActivityLog = memo(function PipelineActivityLog({
         type="button"
         onClick={() => setCollapsed((v) => !v)}
         className={cn(
-          "flex w-full items-center gap-2 px-3.5 py-2.5 text-left rounded-xl",
+          "flex w-full items-end justify-center gap-2 px-3.5 py-2.5 text-left rounded-xl",
           "hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors",
           !collapsed && "rounded-b-none border-b border-[var(--border-default)]"
         )}
       >
-        {isRunning ? (
-          <CircleNotch size={14} weight="bold" className="shrink-0 animate-spin text-accent" />
-        ) : errorCount > 0 ? (
-          <XCircle size={14} weight="fill" className="shrink-0 text-red-500" />
-        ) : (
-          <CheckCircle size={14} weight="fill" className="shrink-0 text-emerald-500" />
-        )}
-
-        <span className="flex-1 min-w-0 text-xs font-medium text-[var(--foreground)] truncate">
+        <span className="min-w-0 w-fit text-xs font-medium text-[var(--foreground)] truncate text-right">
           {isRunning
             ? runningStep
               ? pipelineLabel(locale, runningStep)
@@ -114,7 +106,7 @@ export const PipelineActivityLog = memo(function PipelineActivityLog({
         </span>
 
         {isRunning && runningStep && nodeSummaries[runningStep] && (
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[100px]">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate w-full">
             {nodeSummaries[runningStep]}
           </span>
         )}

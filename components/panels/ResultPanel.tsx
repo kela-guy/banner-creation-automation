@@ -502,7 +502,7 @@ export function ResultPanel({
                 role="switch"
                 aria-checked={useTrends}
                 onClick={() => onUseTrendsChange(!useTrends)}
-                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
+                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors [direction:ltr]",
                   useTrends ? "bg-accent" : "bg-slate-300 dark:bg-slate-600"
                 )}
               >
@@ -518,7 +518,7 @@ export function ResultPanel({
                 role="switch"
                 aria-checked={useReferenceMode}
                 onClick={() => onUseReferenceModeChange(!useReferenceMode)}
-                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
+                className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors [direction:ltr]",
                   useReferenceMode ? "bg-accent" : "bg-slate-300 dark:bg-slate-600"
                 )}
               >
