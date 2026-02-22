@@ -3,7 +3,7 @@
 import React from "react";
 import { Button } from "@/components/ui/Button";
 import { useThemeAndLocale } from "@/components/ThemeAndLocaleProvider";
-import { panelT, t } from "@/lib/translations";
+import { panelT, t, translations } from "@/lib/translations";
 
 const MAX_BANNERS = 15;
 
@@ -46,7 +46,7 @@ export const PanelActionFooter = React.memo(function PanelActionFooter({
         aria-busy={isRunning}
         className="shrink-0"
       >
-        {isRunning ? t(locale, "running") : t(locale, "createBanners")(imageGenerationCount)}
+        {isRunning ? t(locale, "running") : translations[locale].createBanners(imageGenerationCount)}
       </Button>
     </div>
   );
