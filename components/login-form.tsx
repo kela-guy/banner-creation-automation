@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
@@ -36,6 +38,20 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const router = useRouter()
+  const [skipping, setSkipping] = useState(false)
+
+  async function handleSkipLogin() {
+    setSkipping(true)
+    try {
+      await fetch("/api/auth/skip", { method: "POST" })
+      router.push("/")
+      router.refresh()
+    } catch {
+      setSkipping(false)
+    }
+  }
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <FieldGroup>
@@ -56,6 +72,28 @@ export function LoginForm({
             Sign in with Google
           </Button>
         </Field>
+
+        <div className="relative my-1">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+
+        <Field>
+          <Button
+            variant="ghost"
+            size="lg"
+            className="w-full text-muted-foreground"
+            onClick={handleSkipLogin}
+            disabled={skipping}
+          >
+            {skipping ? "Redirecting..." : "Continue without login"}
+          </Button>
+        </Field>
+
         <Field>
           <FieldDescription className="text-center text-muted-foreground">
             Your banners, API key, and data stay in your browser.
