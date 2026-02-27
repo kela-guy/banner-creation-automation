@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadLibrary } from "@/lib/bannerLibrary";
+import { loadLibraryAsync } from "@/lib/bannerLibrary";
 import { ImageGalleryView } from "@/components/panels/ImageGalleryView";
 import type { GeneratedBanner } from "@/types/pipeline";
 
@@ -9,7 +9,7 @@ export default function GalleryPage() {
   const [banners, setBanners] = useState<GeneratedBanner[]>([]);
 
   useEffect(() => {
-    setBanners(loadLibrary());
+    loadLibraryAsync().then(setBanners);
   }, []);
 
   return (

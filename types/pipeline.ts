@@ -28,6 +28,8 @@ export interface BannerTag {
   type: "copy" | "trend" | "style" | "meta";
 }
 
+export type HebrewValidationStatus = "verified" | "unverified" | "skipped";
+
 export interface GeneratedBanner {
   id: string;
   imageBase64: string;
@@ -38,6 +40,8 @@ export interface GeneratedBanner {
   reasoning?: string[];
   /** Compact badges for quick identification. */
   tags?: BannerTag[];
+  /** Hebrew text validation result after OCR check. */
+  hebrewValidation?: HebrewValidationStatus;
 }
 
 export type DocumentFormat = "text" | "pdf" | "docx";

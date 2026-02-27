@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ResultPanel } from "@/components/panels/ResultPanel";
 import { PanelDrawer } from "@/components/PanelDrawer";
+import { DriveUploadModal } from "@/components/DriveUploadModal";
 
 const PipelineCanvas = dynamic(
   () => import("@/components/PipelineCanvas").then((m) => ({ default: m.PipelineCanvas })),
@@ -22,10 +23,10 @@ import { cn } from "@/lib/cn";
 import { loadVault, saveVault } from "@/lib/vault";
 
 
-import { loadLibrary, addToLibrary } from "@/lib/bannerLibrary";
+import { loadLibrary, loadLibraryAsync, addToLibrary } from "@/lib/bannerLibrary";
 import { PipelineActivityLog } from "@/components/PipelineActivityLog";
 import { consumeScoutStream } from "@/lib/consumeScoutStream";
-import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle, BannerTag } from "@/types/pipeline";
+import type { ExtractResult, CopyVariation, BannerConcept, GeneratedBanner, GenerationStyle, BannerTag, HebrewValidationStatus } from "@/types/pipeline";
 import type { TrendTopic, TrendSource, TrendInsights } from "@/types/trends";
 import { DEFAULT_TREND_SOURCES } from "@/types/trends";
 import type { PipelineNodeData } from "@/components/nodes/PipelineNode";
@@ -163,6 +164,10 @@ function Home() {
     setTrendTopics(v.trendTopics ?? []);
     setTrendSources(v.trendSources ?? DEFAULT_TREND_SOURCES);
     setTrendInsights(v.trendInsights ?? null);
+    // Hydrate banner library from IndexedDB (much larger storage than localStorage)
+    loadLibraryAsync().then((idbBanners) => {
+      if (idbBanners.length > 0) setBanners(idbBanners);
+    });
     // Mark restore as done only after state has committed, so the persist effect
     // doesn't run with empty state and overwrite the vault in the same tick.
     const t = setTimeout(() => {
@@ -199,6 +204,7 @@ function Home() {
   const [concepts, setConcepts] = useState<BannerConcept[]>([]);
   const [banners, setBanners] = useState<GeneratedBanner[]>(() => loadLibrary());
   const [currentRunBanners, setCurrentRunBanners] = useState<GeneratedBanner[]>([]);
+  const [showDriveModal, setShowDriveModal] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<Record<string, "idle" | "running" | "success" | "error">>({
     upload: "idle",
     trends: "idle",
@@ -351,12 +357,13 @@ function Home() {
       }
       setNode("generate", "success", `${generated.length} banner${generated.length > 1 ? "s" : ""} created`);
       setNode("gallery", "success");
-      const library = addToLibrary(generated);
+      const library = await addToLibrary(generated);
       startTransition(() => {
         setCurrentRunBanners(generated);
         setBanners(library);
         setSelectedNodeId("gallery");
         setDrawerOpen(true);
+        setShowDriveModal(true);
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Infographic variations failed");
@@ -538,19 +545,27 @@ function Home() {
           ? referenceBanners.slice(0, MAX_REFERENCE_IMAGES_FOR_GENERATE)
           : undefined;
 
-      const fetchImageWithRetry = async (concept: BannerConcept, headline: string | undefined): Promise<{ image: string }> => {
+      const MAX_HEBREW_RETRIES = 2;
+
+      const fetchImage = async (
+        concept: BannerConcept,
+        headline: string | undefined,
+        overridePrompt?: string
+      ): Promise<{ image: string }> => {
+        const payload: Record<string, unknown> = {
+          concept,
+          headline,
+          brandColors: brandColors.filter((c) => c.trim()),
+          referenceImages: referenceImagesForRequest,
+          style: generationStyle,
+        };
+        if (overridePrompt) payload.prompt = overridePrompt;
         const res = await fetchWith429Retry(
           "/api/generate-image",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              concept,
-              headline,
-              brandColors: brandColors.filter((c) => c.trim()),
-              referenceImages: referenceImagesForRequest,
-              style: generationStyle,
-            }),
+            body: JSON.stringify(payload),
           },
           (attempt, sec) => setNode("generate", "running", `Rate limited. Waiting ${sec}s (retry ${attempt})…`)
         );
@@ -571,21 +586,77 @@ function Home() {
         return JSON.parse(text) as { image: string };
       };
 
-      // Generate one banner per concept (loop between concepts and generate nodes).
+      const validateHebrew = async (
+        imageBase64: string,
+        expectedText: string
+      ): Promise<{ match: boolean; readText: string; confidence: string }> => {
+        try {
+          const res = await fetch("/api/validate-hebrew", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: imageBase64, expectedText }),
+          });
+          if (!res.ok) return { match: false, readText: "", confidence: "low" };
+          return await res.json() as { match: boolean; readText: string; confidence: string };
+        } catch {
+          return { match: false, readText: "", confidence: "low" };
+        }
+      };
+
       for (let i = 0; i < count; i++) {
         setNode("generate", "running", `Generating ${i + 1} of ${count}…`);
         const concept = conceptList[i % conceptList.length];
         const copyVar = copyJson.variations?.[i % (copyJson.variations?.length ?? 1)];
         const headline = copyVar?.headline;
-        const imgJson = await fetchImageWithRetry(concept, headline);
+
+        let imgJson = await fetchImage(concept, headline);
         let imageBase64 = imgJson.image;
+        let validationStatus: HebrewValidationStatus = "skipped";
+
+        if (headline) {
+          const { getImagePrompt, wrapRetryPrompt } = await import("@/lib/prompts");
+          let bestImage = imageBase64;
+          let validated = false;
+
+          for (let attempt = 0; attempt <= MAX_HEBREW_RETRIES; attempt++) {
+            setNode(
+              "generate",
+              "running",
+              attempt === 0
+                ? `Verifying Hebrew text (${i + 1}/${count})…`
+                : `Retry ${attempt}/${MAX_HEBREW_RETRIES} — fixing Hebrew (${i + 1}/${count})…`
+            );
+
+            const validation = await validateHebrew(imageBase64, headline);
+
+            if (validation.match) {
+              bestImage = imageBase64;
+              validated = true;
+              break;
+            }
+
+            bestImage = imageBase64;
+
+            if (attempt < MAX_HEBREW_RETRIES) {
+              const basePrompt = getImagePrompt(concept, headline, brandColors.filter((c) => c.trim()));
+              const retryPrompt = wrapRetryPrompt(basePrompt, headline, attempt + 1, validation.readText);
+              setNode("generate", "running", `Re-generating with corrected Hebrew (${i + 1}/${count}, attempt ${attempt + 2})…`);
+              const retryJson = await fetchImage(concept, headline, retryPrompt);
+              imageBase64 = retryJson.image;
+            }
+          }
+
+          imageBase64 = bestImage;
+          validationStatus = validated ? "verified" : "unverified";
+        }
+
         const hasLogo = Boolean(brandLogo);
         if (brandLogo) {
           try {
             const { compositeLogoOntoBanner } = await import("@/lib/compositeLogo");
-            imageBase64 = await compositeLogoOntoBanner(imgJson.image, brandLogo);
+            imageBase64 = await compositeLogoOntoBanner(imageBase64, brandLogo);
           } catch {
-            imageBase64 = imgJson.image;
+            /* keep imageBase64 as-is */
           }
         }
 
@@ -612,6 +683,11 @@ function Home() {
           reasoning.push(`${referenceImagesForRequest.length} reference image(s)`);
         }
         if (hasLogo) reasoning.push("Logo composited");
+        if (validationStatus === "verified") {
+          reasoning.push("Hebrew text: verified ✓");
+        } else if (validationStatus === "unverified") {
+          reasoning.push("Hebrew text: may need review");
+        }
 
         generated.push({
           id: `banner-${i}-${Date.now()}`,
@@ -620,13 +696,14 @@ function Home() {
           copySnippet: headline,
           reasoning,
           tags,
+          hebrewValidation: validationStatus,
           createdAt: Date.now(),
         });
         if (i < count - 1 && delayMs > 0) {
           await new Promise((r) => setTimeout(r, delayMs));
         }
       }
-      const library = addToLibrary(generated);
+      const library = await addToLibrary(generated);
       startTransition(() => {
         setCurrentRunBanners(generated);
         setBanners(library);
@@ -634,6 +711,7 @@ function Home() {
         setNode("gallery", "success", `${library.length} in library`);
         setSelectedNodeId("gallery");
         setDrawerOpen(true);
+        setShowDriveModal(true);
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Pipeline failed";
@@ -850,6 +928,11 @@ function Home() {
           />
         </PanelDrawer>
       </div>
+      <DriveUploadModal
+        banners={currentRunBanners}
+        open={showDriveModal}
+        onClose={() => setShowDriveModal(false)}
+      />
     </div>
   );
 }

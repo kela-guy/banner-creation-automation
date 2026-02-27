@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useRef, useEffect, useMemo } from "react";
-import type { GeneratedBanner, BannerTag } from "@/types/pipeline";
+import type { GeneratedBanner, BannerTag, HebrewValidationStatus } from "@/types/pipeline";
 import { Button } from "@/components/ui/Button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { ListBullets, GridFour } from "@phosphor-icons/react";
@@ -57,6 +57,28 @@ function TagBadges({ tags }: { tags?: BannerTag[] }) {
         <TagBadge key={i} tag={tag} />
       ))}
     </div>
+  );
+}
+
+function HebrewBadge({ status }: { status?: HebrewValidationStatus }) {
+  if (!status || status === "skipped") return null;
+  const isVerified = status === "verified";
+  return (
+    <Tooltip.Root
+      content={isVerified ? "Hebrew text verified correct" : "Hebrew text may contain errors"}
+      side="top"
+    >
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] leading-tight font-medium border rounded-[3px]",
+          isVerified
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+            : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800"
+        )}
+      >
+        {isVerified ? "\u2713 Hebrew" : "\u26A0 Hebrew"}
+      </span>
+    </Tooltip.Root>
   );
 }
 
@@ -356,7 +378,10 @@ export function GalleryPanel({ banners, viewMode: externalViewMode, hideSort = f
                 <span className="block truncate text-sm text-[var(--foreground)]">
                   {b.copySnippet ? `${b.copySnippet.slice(0, 50)}${b.copySnippet.length > 50 ? "…" : ""}` : `Concept ${b.conceptIndex + 1}`}
                 </span>
-                <TagBadges tags={b.tags} />
+                <div className="flex flex-wrap items-center gap-1">
+                  <TagBadges tags={b.tags} />
+                  <HebrewBadge status={b.hebrewValidation} />
+                </div>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button
@@ -392,7 +417,10 @@ export function GalleryPanel({ banners, viewMode: externalViewMode, hideSort = f
               />
             </button>
             <div className="p-2 space-y-1.5">
-              <TagBadges tags={b.tags} />
+              <div className="flex flex-wrap items-center gap-1">
+                <TagBadges tags={b.tags} />
+                <HebrewBadge status={b.hebrewValidation} />
+              </div>
               <div className="flex items-center justify-between gap-1">
                 <label className="flex items-center gap-1.5 cursor-pointer min-w-0">
                   <input
@@ -464,9 +492,10 @@ export function GalleryPanel({ banners, viewMode: externalViewMode, hideSort = f
                   </Button>
                 </div>
               </div>
-              {previewBanner.tags && previewBanner.tags.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
+              {(previewBanner.tags?.length || previewBanner.hebrewValidation) && (
+                <div className="mt-2 pt-2 border-t border-[var(--border-default)] flex flex-wrap items-center gap-1">
                   <TagBadges tags={previewBanner.tags} />
+                  <HebrewBadge status={previewBanner.hebrewValidation} />
                 </div>
               )}
             </div>

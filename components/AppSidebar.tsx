@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { ThemeAndLocaleToggles } from "@/components/ThemeAndLocaleToggles";
 import { cn } from "@/lib/cn";
@@ -31,8 +32,19 @@ const NAV_ITEMS = [
   { href: "/gallery", label: "Image gallery", icon: ImageGalleryIcon },
 ] as const;
 
+function SignOutIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path d="M15 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M19 12H9M19 12L16 9M19 12L16 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const user = session?.user;
 
   return (
     <aside
@@ -74,8 +86,46 @@ export function AppSidebar() {
           );
         })}
       </nav>
-      <div className="p-2">
+      <div className="flex flex-col items-center gap-3 p-2">
         <ThemeAndLocaleToggles />
+
+        {user && (
+          <div className="flex flex-col items-center gap-2">
+            <Tooltip.Root
+              content={user.name ?? user.email ?? "Account"}
+              side="right"
+              className="h-7 w-7 items-center justify-center"
+            >
+              <div>
+                {user.image ? (
+                  <img
+                    src={user.image}
+                    alt=""
+                    className="h-7 w-7 rounded-full ring-1 ring-[var(--border-default)]"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground">
+                    {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+            </Tooltip.Root>
+            <Tooltip.Root
+              content="Sign out"
+              side="right"
+              className="h-7 w-7 items-center justify-center rounded-lg text-[var(--foreground)] transition-colors hover:bg-[var(--surface-card)] hover:text-accent"
+            >
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                aria-label="Sign out"
+              >
+                <SignOutIcon className="h-full w-full" />
+              </button>
+            </Tooltip.Root>
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -4,6 +4,7 @@ import { Inter, Heebo } from "next/font/google";
 import { ThemeAndLocaleProvider } from "@/components/ThemeAndLocaleProvider";
 import { FullScreenLayoutProvider } from "@/components/FullScreenLayoutContext";
 import { AppLayout } from "@/components/AppLayout";
+import { SessionProvider } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const heebo = Heebo({ subsets: ["hebrew", "latin"], variable: "--font-hebrew", display: "swap" });
@@ -50,11 +51,13 @@ export default async function RootLayout(props: Readonly<LayoutProps>) {
         />
       </head>
       <body className="antialiased">
-        <ThemeAndLocaleProvider>
-          <FullScreenLayoutProvider>
-            <AppLayout>{children}</AppLayout>
-          </FullScreenLayoutProvider>
-        </ThemeAndLocaleProvider>
+        <SessionProvider>
+          <ThemeAndLocaleProvider>
+            <FullScreenLayoutProvider>
+              <AppLayout>{children}</AppLayout>
+            </FullScreenLayoutProvider>
+          </ThemeAndLocaleProvider>
+        </SessionProvider>
       </body>
     </html>
   );

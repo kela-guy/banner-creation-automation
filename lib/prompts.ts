@@ -83,7 +83,10 @@ Return exactly 15 variations in this JSON structure (no other text):
   ]
 }
 
-Rules: type must be exactly "curiosity" | "benefit" | "scarcity". Headlines and body in Hebrew. Natural, modern Hebrew. No markdown.`;
+Rules:
+- type must be exactly "curiosity" | "benefit" | "scarcity".
+- Headlines and body in Hebrew. Natural, modern Hebrew. No markdown.
+- IMPORTANT: Headlines must be SHORT — no more than 5-6 words. Shorter headlines render better on banners and have higher visual impact. Aim for 2-4 punchy words when possible.`;
 }
 
 export const CONCEPTS_SYSTEM = `You are a State-of-the-Art (SoTA) Marketer and visual designer. Generate minimalistic 1:1 square banner concepts where typography is the focal point. Use a Right-to-Left (RTL) mindset for Hebrew: eye flow top-right to bottom-left. Suggest Hebrew fonts: Assistant, Heebo, or Rubik. Keep designs clean with no visual clutter so the message stands out. The target audience is female; if a concept includes any person or character, it must be a woman, not a man. Do not include logos or brand marks in the concept—the logo is added separately.`;
@@ -138,6 +141,7 @@ Return only valid JSON, no markdown.`;
 const IMAGE_GENERATION_INSTRUCTIONS = [
   "Create a UNIQUE composition: vary layout, framing, negative space, and visual hierarchy so this banner feels distinct—avoid generic or repetitive layouts.",
   "Typography on the banner must be MINIMAL and smart: do NOT put a lot of text on the banner. Use at most one short headline or a single impactful phrase. Less text is more effective for display ads; overcrowding with copy looks unprofessional and reduces impact.",
+  "CRITICAL HEBREW TEXT ACCURACY: Every Hebrew letter must be perfectly formed, correctly shaped, and fully legible. Spell the Hebrew text EXACTLY as provided — do not add, remove, swap, or modify any letter. Hebrew reads right-to-left; ensure correct letter ordering. Double-check each character before finalizing. The text must be large enough to read clearly.",
   "1:1 aspect ratio, minimalistic, typography-focused, RTL-friendly composition, professional Hebrew ad banner.",
   "Do NOT draw, include, or suggest any logo, brand mark, watermark, or signature in the image; the brand logo will be added separately.",
   "Target audience is female. If the image includes any person or character, they must be a woman (female), not a man.",
@@ -157,9 +161,38 @@ export function getImagePrompt(
     parts.push(`Use these brand colors: ${brandColors.filter((c) => c.trim()).join(", ")}.`);
   }
   if (headline) {
-    parts.push(`Display this Hebrew headline prominently (keep it the main or only text on the banner): ${headline}`);
+    const words = headline.trim().split(/\s+/);
+    const charCount = headline.replace(/\s/g, "").length;
+    parts.push(
+      `Display this Hebrew headline prominently (keep it the main or only text on the banner).`,
+      `The headline has exactly ${words.length} word(s) and ${charCount} Hebrew characters.`,
+      `Render it letter-perfect in large, clear type: "${headline}"`
+    );
   }
   return parts.join(" ");
+}
+
+/**
+ * Wraps an existing image prompt with extra emphasis on Hebrew text accuracy.
+ * Used on retry after validation detected a mismatch.
+ */
+export function wrapRetryPrompt(
+  originalPrompt: string,
+  headline: string,
+  attempt: number,
+  readText?: string
+): string {
+  const mismatchNote = readText
+    ? ` The previous attempt rendered "${readText}" instead of the correct text.`
+    : "";
+  const letterByLetter = headline.split("").join(" ");
+  return [
+    `RETRY ATTEMPT ${attempt} — the previous image had INCORRECT Hebrew text.${mismatchNote}`,
+    `You MUST render the Hebrew text with PERFECT spelling this time. The EXACT headline is: "${headline}"`,
+    `Letter by letter (right-to-left): ${letterByLetter}`,
+    `Pay extreme attention to each individual Hebrew character. Do not approximate or guess any letter.`,
+    originalPrompt,
+  ].join("\n\n");
 }
 
 // --- Infographic style (reference-based variations) ---
@@ -168,6 +201,7 @@ export function getImagePrompt(
 const INFOGRAPHIC_IMAGE_INSTRUCTIONS = [
   "Create a cartoon-style infographic image: illustration with clear visual metaphors (e.g. puzzle pieces, diagrams, cross-sections, icons).",
   "Use Hebrew labels and short phrases liberally where they explain the concept (e.g. on diagrams, in speech or thought bubbles, in a title banner at the top).",
+  "CRITICAL HEBREW TEXT ACCURACY: Every Hebrew letter must be perfectly formed, correctly shaped, and fully legible. Spell all Hebrew text EXACTLY as provided — do not add, remove, swap, or modify any letter. Hebrew reads right-to-left; ensure correct letter ordering.",
   "Include structural elements such as: title banner, labeled diagrams (e.g. body cross-section, puzzle pieces), arrows, optional character with speech or thought bubble.",
   "1:1 aspect ratio, RTL-friendly layout for Hebrew, professional but approachable infographic style.",
   "Do NOT draw, include, or suggest any logo, brand mark, watermark, or signature in the image; the brand logo will be added separately.",

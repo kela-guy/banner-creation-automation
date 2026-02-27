@@ -1,32 +1,58 @@
-"use client";
+"use client"
 
-import { Button as BaseButton } from "@base-ui/react/button";
-import { cn } from "@/lib/cn";
+import { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { cva, type VariantProps } from "class-variance-authority"
 
-const buttonVariants = {
-  primary:
-    "rounded-lg border border-accent/40 bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-card transition-all duration-150 hover:brightness-110 active:scale-[0.98] focus-visible:outline focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50 disabled:hover:brightness-100 disabled:active:scale-100",
-  secondary:
-    "rounded-lg border border-[var(--border-default)] bg-[var(--surface-card)] shadow-sm px-3 py-1.5 text-sm font-medium text-[var(--foreground)] transition-all duration-150 hover:bg-accent-muted/40 hover:border-accent/30 active:scale-[0.98] focus-visible:outline focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50 disabled:hover:bg-[var(--surface-card)] disabled:hover:border-[var(--border-default)] disabled:active:scale-100",
-  ghost:
-    "rounded border border-transparent text-xs font-medium text-slate-600 transition-all duration-150 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-200 active:scale-[0.98] focus-visible:outline focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 dark:hover:border-slate-600 ",
-};
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "shadow-sm focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium focus-visible:ring-2 aria-invalid:ring-2 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/85",
+        primary: "bg-primary text-primary-foreground hover:bg-primary/85",
+        outline: "border-border dark:bg-input/30 hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+        ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 aria-expanded:bg-muted aria-expanded:text-foreground",
+        destructive: "bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
+        link: "text-primary underline-offset-4 hover:underline hover:text-primary/80 shadow-none",
+      },
+      size: {
+        default: "h-7 gap-1 px-2 text-xs/relaxed has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        xs: "h-5 gap-1 rounded-sm px-2 text-[0.625rem] has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_svg:not([class*='size-'])]:size-2.5",
+        sm: "h-6 gap-1 px-2 text-xs/relaxed has-data-[icon=inline-end]:pe-1.5 has-data-[icon=inline-start]:ps-1.5 [&_svg:not([class*='size-'])]:size-3",
+        lg: "h-8 gap-1 px-2.5 text-xs/relaxed has-data-[icon=inline-end]:pe-2 has-data-[icon=inline-start]:ps-2 [&_svg:not([class*='size-'])]:size-4",
+        icon: "size-7 [&_svg:not([class*='size-'])]:size-3.5",
+        "icon-xs": "size-5 rounded-sm [&_svg:not([class*='size-'])]:size-2.5",
+        "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-lg": "size-8 [&_svg:not([class*='size-'])]:size-4",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
 
 export interface ButtonProps
-  extends Omit<React.ComponentProps<typeof BaseButton>, "className"> {
-  variant?: keyof typeof buttonVariants;
-  className?: string;
-}
+  extends ButtonPrimitive.Props,
+    VariantProps<typeof buttonVariants> {}
 
-export function Button({
-  variant = "primary",
+function Button({
   className,
+  variant = "default",
+  size = "default",
   ...props
 }: ButtonProps) {
   return (
-    <BaseButton
-      className={cn(buttonVariants[variant], className)}
+    <ButtonPrimitive
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
-  );
+  )
 }
+
+export { Button, buttonVariants }
